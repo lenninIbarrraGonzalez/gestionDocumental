@@ -1,0 +1,5 @@
+export { DocumentUpload } from './document-upload'
+export { DocumentForm } from './document-form'
+export { DocumentTable } from './document-table'
+export { DocumentViewer } from './document-viewer'
+export { DocumentDetail } from './document-detail'
