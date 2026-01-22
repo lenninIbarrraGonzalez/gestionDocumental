@@ -48,17 +48,9 @@ next-env.d.ts
 *.swp
 *.swo
 
-# Claude / AI assistants
-.claude/
-.claude*
-*.claude
-CLAUDE.md
-
-# Cursor
+# AI assistants / Editor config
 .cursor/
 .cursorignore
 .cursorrc
-
-# Other AI assistants
 .aider*
 .copilot/
