@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { Sidebar } from '@/components/layout/sidebar'
+import { MobileSidebar } from '@/components/layout/mobile-sidebar'
 import { Header } from '@/components/layout/header'
 import { useDocumentStore } from '@/stores/document-store'
 import { useCompanyStore } from '@/stores/company-store'
@@ -34,9 +35,10 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-muted/30">
       <Sidebar />
-      <div className="pl-64">
+      <MobileSidebar />
+      <div className="md:pl-64">
         <Header />
-        <main className="p-6">{children}</main>
+        <main className="p-4 md:p-6">{children}</main>
       </div>
     </div>
   )

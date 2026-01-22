@@ -24,13 +24,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Bell, LogOut, User } from 'lucide-react'
+import { Bell, LogOut, Menu, User } from 'lucide-react'
+import { useSidebarStore } from '@/stores/sidebar-store'
 import { Badge } from '@/components/ui/badge'
 
 export function Header() {
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
   const unreadCount = useNotificationStore((state) => state.getUnreadCount())
+  const toggleSidebar = useSidebarStore((state) => state.toggle)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   // Initialize session timeout monitoring
@@ -51,8 +53,17 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-6">
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
         <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={toggleSidebar}
+          >
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Abrir menu</span>
+          </Button>
           <h1 className="text-lg font-semibold">Sistema de Gestion Documental</h1>
         </div>
         <div className="flex items-center gap-4">
