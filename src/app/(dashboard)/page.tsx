@@ -5,6 +5,21 @@ import { useCompanyStore } from '@/stores/company-store'
 import { useWorkerStore } from '@/stores/worker-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { FileText, Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle } from 'lucide-react'
+import {
+  useStatusDistribution,
+  useTypeDistribution,
+  useMonthlyTrend,
+  useCompanyDistribution,
+  useKPIs,
+} from '@/hooks/use-dashboard-stats'
+import {
+  LazyStatusDistributionChart as StatusDistributionChart,
+  LazyMonthlyTrendChart as MonthlyTrendChart,
+  LazyTypeDistributionChart as TypeDistributionChart,
+  LazyCompanyDistributionChart as CompanyDistributionChart,
+  LazyKPIGauge as KPIGauge,
+} from '@/components/charts'
+import { ExpirationAlerts } from '@/components/features/dashboard/expiration-alerts'
 
 export default function DashboardPage() {
   const documents = useDocumentStore((state) => state.documents)
@@ -12,6 +27,13 @@ export default function DashboardPage() {
   const workers = useWorkerStore((state) => state.workers)
   const getDocumentsByStatus = useDocumentStore((state) => state.getDocumentsByStatus)
   const getExpiringDocuments = useDocumentStore((state) => state.getExpiringDocuments)
+
+  // Chart data hooks
+  const statusDistribution = useStatusDistribution()
+  const typeDistribution = useTypeDistribution()
+  const monthlyTrend = useMonthlyTrend(6)
+  const companyDistribution = useCompanyDistribution()
+  const kpis = useKPIs()
 
   const stats = [
     {
@@ -54,6 +76,9 @@ export default function DashboardPage() {
           Resumen general del sistema de gestion documental
         </p>
       </div>
+
+      {/* Expiration Alerts */}
+      <ExpirationAlerts />
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -106,51 +131,74 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Recent Documents */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Documentos Recientes</CardTitle>
-          <CardDescription>Ultimos documentos creados o actualizados</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {documents.slice(0, 5).map((doc) => (
-              <div
-                key={doc.id}
-                className="flex items-center justify-between rounded-lg border p-4"
-              >
-                <div className="flex items-center gap-4">
-                  <FileText className="h-8 w-8 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">{doc.titulo}</p>
-                    <p className="text-sm text-muted-foreground">{doc.codigo}</p>
+      {/* Charts Row 1 */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <StatusDistributionChart data={statusDistribution} />
+        <MonthlyTrendChart data={monthlyTrend} />
+      </div>
+
+      {/* Charts Row 2 */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <TypeDistributionChart data={typeDistribution} />
+        <CompanyDistributionChart data={companyDistribution} />
+      </div>
+
+      {/* Charts Row 3: KPI Gauge + Recent Documents */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <KPIGauge
+          value={kpis.approvalRate}
+          label="Tasa de Aprobacion"
+          description="Porcentaje de documentos aprobados vs rechazados"
+          approvedCount={kpis.approvedCount}
+          rejectedCount={kpis.rejectedCount}
+        />
+
+        {/* Recent Documents */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Documentos Recientes</CardTitle>
+            <CardDescription>Ultimos documentos creados o actualizados</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {documents.slice(0, 5).map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between rounded-lg border p-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <FileText className="h-8 w-8 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">{doc.titulo}</p>
+                      <p className="text-sm text-muted-foreground">{doc.codigo}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        doc.estado === 'aprobado'
+                          ? 'bg-sura-success-light text-sura-success'
+                          : doc.estado === 'rechazado'
+                          ? 'bg-sura-danger-light text-sura-danger'
+                          : doc.estado === 'borrador'
+                          ? 'bg-muted text-muted-foreground'
+                          : 'bg-sura-warning-light text-sura-warning'
+                      }`}
+                    >
+                      {doc.estado}
+                    </span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      doc.estado === 'aprobado'
-                        ? 'bg-sura-success-light text-sura-success'
-                        : doc.estado === 'rechazado'
-                        ? 'bg-sura-danger-light text-sura-danger'
-                        : doc.estado === 'borrador'
-                        ? 'bg-muted text-muted-foreground'
-                        : 'bg-sura-warning-light text-sura-warning'
-                    }`}
-                  >
-                    {doc.estado}
-                  </span>
-                </div>
-              </div>
-            ))}
-            {documents.length === 0 && (
-              <p className="text-center text-muted-foreground py-4">
-                No hay documentos registrados
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+              {documents.length === 0 && (
+                <p className="text-center text-muted-foreground py-4">
+                  No hay documentos registrados
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
