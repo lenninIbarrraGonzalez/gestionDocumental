@@ -2,42 +2,63 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useDashboardStats } from './use-dashboard-stats'
 
-// Mock stores
+// Mock data
+const mockDocuments = [
+  { id: '1', estado: 'borrador', tipo: 'POL_SST', empresaId: '1' },
+  { id: '2', estado: 'aprobado', tipo: 'FURAT', empresaId: '1' },
+  { id: '3', estado: 'en_revision', tipo: 'POL_SST', empresaId: '2' },
+  { id: '4', estado: 'aprobado', tipo: 'MAT_PEL', empresaId: '1' },
+  { id: '5', estado: 'rechazado', tipo: 'FURAT', empresaId: '2' },
+]
+
+const mockCompanies = [
+  { id: '1', activa: true },
+  { id: '2', activa: true },
+  { id: '3', activa: false },
+]
+
+const mockWorkers = [
+  { id: '1', activo: true },
+  { id: '2', activo: true },
+  { id: '3', activo: false },
+  { id: '4', activo: true },
+]
+
+const mockGetExpiringDocuments = vi.fn(() => [{ id: '1' }, { id: '2' }])
+const mockGetExpiredDocuments = vi.fn(() => [{ id: '3' }])
+const mockGetActiveCompanies = vi.fn(() => [{ id: '1' }, { id: '2' }])
+const mockGetActiveWorkers = vi.fn(() => [{ id: '1' }, { id: '2' }, { id: '4' }])
+
+// Mock stores with selector support
 vi.mock('@/stores/document-store', () => ({
-  useDocumentStore: vi.fn(() => ({
-    documents: [
-      { id: '1', estado: 'borrador', tipo: 'POL_SST', empresaId: '1' },
-      { id: '2', estado: 'aprobado', tipo: 'FURAT', empresaId: '1' },
-      { id: '3', estado: 'en_revision', tipo: 'POL_SST', empresaId: '2' },
-      { id: '4', estado: 'aprobado', tipo: 'MAT_PEL', empresaId: '1' },
-      { id: '5', estado: 'rechazado', tipo: 'FURAT', empresaId: '2' },
-    ],
-    getExpiringDocuments: vi.fn(() => [{ id: '1' }, { id: '2' }]),
-    getExpiredDocuments: vi.fn(() => [{ id: '3' }]),
-  })),
+  useDocumentStore: vi.fn((selector?: (state: Record<string, unknown>) => unknown) => {
+    const state = {
+      documents: mockDocuments,
+      getExpiringDocuments: mockGetExpiringDocuments,
+      getExpiredDocuments: mockGetExpiredDocuments,
+    }
+    return selector ? selector(state) : state
+  }),
 }))
 
 vi.mock('@/stores/company-store', () => ({
-  useCompanyStore: vi.fn(() => ({
-    companies: [
-      { id: '1', activa: true },
-      { id: '2', activa: true },
-      { id: '3', activa: false },
-    ],
-    getActiveCompanies: vi.fn(() => [{ id: '1' }, { id: '2' }]),
-  })),
+  useCompanyStore: vi.fn((selector?: (state: Record<string, unknown>) => unknown) => {
+    const state = {
+      companies: mockCompanies,
+      getActiveCompanies: mockGetActiveCompanies,
+    }
+    return selector ? selector(state) : state
+  }),
 }))
 
 vi.mock('@/stores/worker-store', () => ({
-  useWorkerStore: vi.fn(() => ({
-    workers: [
-      { id: '1', activo: true },
-      { id: '2', activo: true },
-      { id: '3', activo: false },
-      { id: '4', activo: true },
-    ],
-    getActiveWorkers: vi.fn(() => [{ id: '1' }, { id: '2' }, { id: '4' }]),
-  })),
+  useWorkerStore: vi.fn((selector?: (state: Record<string, unknown>) => unknown) => {
+    const state = {
+      workers: mockWorkers,
+      getActiveWorkers: mockGetActiveWorkers,
+    }
+    return selector ? selector(state) : state
+  }),
 }))
 
 describe('useDashboardStats', () => {
