@@ -223,4 +223,149 @@ describe('CompanyStore', () => {
       expect(company).toBeUndefined()
     })
   })
+
+  describe('fetchCompanies', () => {
+    it('should fetch companies from database', async () => {
+      const { db } = await import('@/lib/db')
+      const mockCompanies = [
+        { id: '1', razonSocial: 'Company 1' },
+        { id: '2', razonSocial: 'Company 2' },
+      ]
+      vi.mocked(db.companies.toArray).mockResolvedValue(mockCompanies as any)
+
+      await act(async () => {
+        await useCompanyStore.getState().fetchCompanies()
+      })
+
+      const state = useCompanyStore.getState()
+      expect(state.companies).toHaveLength(2)
+      expect(state.isLoading).toBe(false)
+    })
+
+    it('should set error on fetch failure', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.companies.toArray).mockRejectedValue(new Error('DB error'))
+
+      await act(async () => {
+        await useCompanyStore.getState().fetchCompanies()
+      })
+
+      const state = useCompanyStore.getState()
+      expect(state.error).toBe('Error al cargar empresas')
+      expect(state.isLoading).toBe(false)
+    })
+  })
+
+  describe('createCompany', () => {
+    it('should create a new company', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.companies.add).mockResolvedValue(undefined as any)
+
+      const companyData = {
+        nit: '900123456',
+        digitoVerificacion: '1',
+        razonSocial: 'Nueva Empresa',
+        direccion: 'Calle 123',
+        ciudad: 'Bogota',
+        departamento: 'Cundinamarca',
+        telefono: '1234567',
+        email: 'test@empresa.com',
+        representanteLegal: 'Juan Perez',
+        activa: true,
+      }
+
+      let result: any
+      await act(async () => {
+        result = await useCompanyStore.getState().createCompany(companyData as any)
+      })
+
+      expect(result.razonSocial).toBe('Nueva Empresa')
+      expect(result.id).toBeDefined()
+      expect(useCompanyStore.getState().companies).toHaveLength(1)
+    })
+  })
+
+  describe('updateCompany', () => {
+    it('should update an existing company', async () => {
+      const { db } = await import('@/lib/db')
+      const existingCompany = {
+        id: '1',
+        razonSocial: 'Old Name',
+        activa: true,
+      }
+      vi.mocked(db.companies.get).mockResolvedValue(existingCompany as any)
+      vi.mocked(db.companies.update).mockResolvedValue(1)
+
+      useCompanyStore.setState({
+        companies: [existingCompany as any],
+      })
+
+      await act(async () => {
+        await useCompanyStore.getState().updateCompany('1', { razonSocial: 'New Name' })
+      })
+
+      const company = useCompanyStore.getState().companies[0]
+      expect(company.razonSocial).toBe('New Name')
+    })
+  })
+
+  describe('deleteCompany', () => {
+    it('should delete a company', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.companies.delete).mockResolvedValue(undefined)
+
+      useCompanyStore.setState({
+        companies: [{ id: '1', razonSocial: 'Company 1' } as any],
+        selectedCompany: { id: '1' } as any,
+      })
+
+      await act(async () => {
+        await useCompanyStore.getState().deleteCompany('1')
+      })
+
+      const state = useCompanyStore.getState()
+      expect(state.companies).toHaveLength(0)
+      expect(state.selectedCompany).toBeNull()
+    })
+  })
+
+  describe('toggleActive', () => {
+    it('should toggle company active status', async () => {
+      const { db } = await import('@/lib/db')
+      const existingCompany = {
+        id: '1',
+        razonSocial: 'Test Company',
+        activa: true,
+      }
+      vi.mocked(db.companies.get).mockResolvedValue(existingCompany as any)
+      vi.mocked(db.companies.update).mockResolvedValue(1)
+
+      useCompanyStore.setState({
+        companies: [existingCompany as any],
+      })
+
+      await act(async () => {
+        await useCompanyStore.getState().toggleActive('1')
+      })
+
+      const company = useCompanyStore.getState().companies[0]
+      expect(company.activa).toBe(false)
+    })
+  })
+
+  describe('searchCompanies', () => {
+    it('should search companies by razonSocial', () => {
+      useCompanyStore.setState({
+        companies: [
+          { id: '1', razonSocial: 'Empresa ABC', nit: '900111', ciudad: 'Bogota' },
+          { id: '2', razonSocial: 'Empresa XYZ', nit: '900222', ciudad: 'Cali' },
+        ] as any,
+      })
+
+      const results = useCompanyStore.getState().searchCompanies('ABC')
+
+      expect(results).toHaveLength(1)
+      expect(results[0].razonSocial).toContain('ABC')
+    })
+  })
 })

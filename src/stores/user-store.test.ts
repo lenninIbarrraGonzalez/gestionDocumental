@@ -22,8 +22,8 @@ vi.mock('@/lib/db', () => ({
 
 // Mock generators
 vi.mock('@/lib/generators', () => ({
-  generateId: vi.fn().mockReturnValue('test-id'),
-  hashPassword: vi.fn().mockImplementation((pwd) => Promise.resolve(`hashed_${pwd}`)),
+  generateId: () => 'test-id',
+  hashPassword: (pwd: string) => `hashed_${pwd}`,
 }))
 
 describe('UserStore', () => {
@@ -216,6 +216,145 @@ describe('UserStore', () => {
       const user = useUserStore.getState().getUserById('2')
 
       expect(user?.nombre).toBe('User 2')
+    })
+  })
+
+  describe('fetchUsers', () => {
+    it('should fetch users from database', async () => {
+      const { db } = await import('@/lib/db')
+      const mockUsers = [
+        { id: '1', nombre: 'User 1', passwordHash: 'hash1' },
+        { id: '2', nombre: 'User 2', passwordHash: 'hash2' },
+      ]
+      vi.mocked(db.users.toArray).mockResolvedValue(mockUsers as any)
+
+      await act(async () => {
+        await useUserStore.getState().fetchUsers()
+      })
+
+      const state = useUserStore.getState()
+      expect(state.users).toHaveLength(2)
+      expect(state.isLoading).toBe(false)
+      // Users should not have passwordHash
+      expect(state.users[0]).not.toHaveProperty('passwordHash')
+    })
+
+    it('should set error on fetch failure', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.users.toArray).mockRejectedValue(new Error('DB error'))
+
+      await act(async () => {
+        await useUserStore.getState().fetchUsers()
+      })
+
+      const state = useUserStore.getState()
+      expect(state.error).toBe('Error al cargar usuarios')
+      expect(state.isLoading).toBe(false)
+    })
+  })
+
+  describe('createUser', () => {
+    it('should create a new user', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.users.add).mockResolvedValue(undefined as any)
+
+      const userData = {
+        email: 'newuser@test.com',
+        password: 'password123',
+        nombre: 'New',
+        apellido: 'User',
+        rol: 'digitador' as const,
+      }
+
+      const result = await useUserStore.getState().createUser(userData)
+
+      expect(result.email).toBe('newuser@test.com')
+      expect(result.id).toBe('test-id')
+      expect(useUserStore.getState().users).toHaveLength(1)
+    })
+  })
+
+  describe('updateUser', () => {
+    it('should update an existing user', async () => {
+      const { db } = await import('@/lib/db')
+      const existingUser = {
+        id: '1',
+        nombre: 'Old Name',
+        apellido: 'User',
+        email: 'test@test.com',
+        rol: 'digitador',
+        activo: true,
+      }
+      vi.mocked(db.users.get).mockResolvedValue(existingUser as any)
+      vi.mocked(db.users.update).mockResolvedValue(1)
+
+      useUserStore.setState({
+        users: [existingUser as any],
+      })
+
+      await act(async () => {
+        await useUserStore.getState().updateUser('1', { nombre: 'New Name' })
+      })
+
+      const user = useUserStore.getState().users[0]
+      expect(user.nombre).toBe('New Name')
+    })
+  })
+
+  describe('deleteUser', () => {
+    it('should delete a user', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.users.delete).mockResolvedValue(undefined)
+
+      useUserStore.setState({
+        users: [{ id: '1', nombre: 'User 1' } as any],
+        selectedUser: { id: '1' } as any,
+      })
+
+      await act(async () => {
+        await useUserStore.getState().deleteUser('1')
+      })
+
+      const state = useUserStore.getState()
+      expect(state.users).toHaveLength(0)
+      expect(state.selectedUser).toBeNull()
+    })
+  })
+
+  describe('toggleActive', () => {
+    it('should toggle user active status', async () => {
+      const { db } = await import('@/lib/db')
+      const existingUser = {
+        id: '1',
+        nombre: 'Test User',
+        activo: true,
+      }
+      vi.mocked(db.users.get).mockResolvedValue(existingUser as any)
+      vi.mocked(db.users.update).mockResolvedValue(1)
+
+      useUserStore.setState({
+        users: [existingUser as any],
+      })
+
+      await act(async () => {
+        await useUserStore.getState().toggleActive('1')
+      })
+
+      const user = useUserStore.getState().users[0]
+      expect(user.activo).toBe(false)
+    })
+  })
+
+  describe('updatePassword', () => {
+    it('should call db.users.update with new password hash', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.users.update).mockResolvedValue(1)
+
+      await act(async () => {
+        await useUserStore.getState().updatePassword('1', 'newPassword123')
+      })
+
+      expect(db.users.update).toHaveBeenCalled()
     })
   })
 })

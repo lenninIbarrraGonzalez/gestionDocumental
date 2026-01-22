@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { db, type User } from '@/lib/db'
-import { hashPassword } from '@/lib/generators'
+import { verifyPassword } from '@/lib/generators'
 import { STORAGE_KEYS } from '@/lib/constants'
 
 interface AuthState {
@@ -42,8 +42,7 @@ export const useAuthStore = create<AuthState>()(
           }
 
           // Verify password
-          const hashedPassword = await hashPassword(password)
-          if (hashedPassword !== user.passwordHash) {
+          if (!verifyPassword(password, user.passwordHash)) {
             set({ isLoading: false, error: 'Credenciales invalidas' })
             return
           }

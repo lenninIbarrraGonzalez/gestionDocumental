@@ -42,7 +42,7 @@ interface TransitionResult {
   error?: string
 }
 
-interface TransitionRecord {
+export interface TransitionRecord {
   documentoId: string
   accion: WorkflowAction
   estadoAnterior: DocumentStatus
@@ -163,5 +163,44 @@ export class WorkflowService {
    */
   static canDelete(status: DocumentStatus): boolean {
     return status === 'borrador'
+  }
+
+  /**
+   * Get available actions for a given status (alias for getAvailableTransitions)
+   */
+  static getAvailableActions(status: DocumentStatus): WorkflowAction[] {
+    return this.getAvailableTransitions(status)
+  }
+
+  /**
+   * Simplified transition execution - validates and returns the new status
+   * Use this for simpler cases where you don't need to record history
+   */
+  static executeSimpleTransition(
+    documentoId: string,
+    estadoAnterior: DocumentStatus,
+    accion: WorkflowAction,
+    usuarioId: string,
+    comentario?: string
+  ): { estadoNuevo: DocumentStatus; record: TransitionRecord } {
+    const validation = this.validateTransition(estadoAnterior, accion)
+
+    if (!validation.valid) {
+      throw new Error(validation.error)
+    }
+
+    const estadoNuevo = this.getNextStatus(accion)
+
+    return {
+      estadoNuevo,
+      record: {
+        documentoId,
+        accion,
+        estadoAnterior,
+        estadoNuevo,
+        usuarioId,
+        comentario,
+      },
+    }
   }
 }

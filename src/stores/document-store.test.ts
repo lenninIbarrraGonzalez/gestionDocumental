@@ -354,4 +354,229 @@ describe('DocumentStore', () => {
       expect(expired[0].id).toBe('1')
     })
   })
+
+  describe('fetchDocuments', () => {
+    it('should fetch documents from database', async () => {
+      const { db } = await import('@/lib/db')
+      const mockDocuments = [
+        { id: '1', titulo: 'Document 1', estado: 'borrador' },
+        { id: '2', titulo: 'Document 2', estado: 'aprobado' },
+      ]
+      vi.mocked(db.documents.toArray).mockResolvedValue(mockDocuments as any)
+
+      await act(async () => {
+        await useDocumentStore.getState().fetchDocuments()
+      })
+
+      const state = useDocumentStore.getState()
+      expect(state.documents).toHaveLength(2)
+      expect(state.isLoading).toBe(false)
+    })
+
+    it('should set error on fetch failure', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.documents.toArray).mockRejectedValue(new Error('DB error'))
+
+      await act(async () => {
+        await useDocumentStore.getState().fetchDocuments()
+      })
+
+      const state = useDocumentStore.getState()
+      expect(state.error).toBe('Error al cargar documentos')
+      expect(state.isLoading).toBe(false)
+    })
+  })
+
+  describe('createDocument', () => {
+    it('should create a new document', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.documents.add).mockResolvedValue(undefined as any)
+      vi.mocked(db.documents.toArray).mockResolvedValue([])
+
+      const documentData = {
+        titulo: 'New Document',
+        tipo: 'POL_SST',
+        empresaId: 'company-1',
+        descripcion: 'Test description',
+      }
+
+      const result = await useDocumentStore.getState().createDocument(documentData as any, 'user-1')
+
+      expect(result.titulo).toBe('New Document')
+      expect(result.estado).toBe('borrador')
+      expect(result.version).toBe(1)
+      expect(useDocumentStore.getState().documents).toHaveLength(1)
+    })
+  })
+
+  describe('updateDocument', () => {
+    it('should update an existing document', async () => {
+      const { db } = await import('@/lib/db')
+      const existingDocument = {
+        id: '1',
+        titulo: 'Old Title',
+        tipo: 'POL_SST',
+        estado: 'borrador',
+        version: 1,
+      }
+      vi.mocked(db.documents.get).mockResolvedValue(existingDocument as any)
+      vi.mocked(db.documents.update).mockResolvedValue(1)
+
+      useDocumentStore.setState({ documents: [existingDocument as any] })
+
+      await act(async () => {
+        await useDocumentStore.getState().updateDocument('1', { titulo: 'New Title' }, 'user-1')
+      })
+
+      const document = useDocumentStore.getState().documents[0]
+      expect(document.titulo).toBe('New Title')
+    })
+
+    it('should throw error for non-existent document', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.documents.get).mockResolvedValue(undefined)
+
+      await expect(
+        useDocumentStore.getState().updateDocument('999', { titulo: 'New Title' }, 'user-1')
+      ).rejects.toThrow('Documento no encontrado')
+    })
+  })
+
+  describe('deleteDocument', () => {
+    it('should delete a document', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.documents.delete).mockResolvedValue(undefined)
+
+      useDocumentStore.setState({
+        documents: [{ id: '1', titulo: 'Document 1' } as any],
+        selectedDocument: { id: '1' } as any,
+      })
+
+      await act(async () => {
+        await useDocumentStore.getState().deleteDocument('1')
+      })
+
+      const state = useDocumentStore.getState()
+      expect(state.documents).toHaveLength(0)
+      expect(state.selectedDocument).toBeNull()
+    })
+  })
+
+  describe('getTotalPages', () => {
+    it('should calculate total pages correctly', () => {
+      const mockDocuments = Array.from({ length: 45 }, (_, i) => ({
+        id: `${i + 1}`,
+        titulo: `Document ${i + 1}`,
+      }))
+
+      useDocumentStore.setState({
+        documents: mockDocuments as any,
+        pageSize: 10,
+      })
+
+      const totalPages = useDocumentStore.getState().getTotalPages()
+
+      expect(totalPages).toBe(5)
+    })
+  })
+
+  describe('getDocumentsByCompany', () => {
+    it('should return documents for specific company', () => {
+      const mockDocuments = [
+        { id: '1', empresaId: 'company-1' },
+        { id: '2', empresaId: 'company-2' },
+        { id: '3', empresaId: 'company-1' },
+      ]
+
+      useDocumentStore.setState({ documents: mockDocuments as any })
+
+      const companyDocs = useDocumentStore.getState().getDocumentsByCompany('company-1')
+
+      expect(companyDocs).toHaveLength(2)
+      expect(companyDocs.every((d) => d.empresaId === 'company-1')).toBe(true)
+    })
+  })
+
+  describe('getDocumentsByType', () => {
+    it('should return documents of specific type', () => {
+      const mockDocuments = [
+        { id: '1', tipo: 'POL_SST' },
+        { id: '2', tipo: 'FURAT' },
+        { id: '3', tipo: 'POL_SST' },
+      ]
+
+      useDocumentStore.setState({ documents: mockDocuments as any })
+
+      const typeDocs = useDocumentStore.getState().getDocumentsByType('POL_SST')
+
+      expect(typeDocs).toHaveLength(2)
+      expect(typeDocs.every((d) => d.tipo === 'POL_SST')).toBe(true)
+    })
+  })
+
+  describe('searchDocuments', () => {
+    it('should search documents by title', () => {
+      const mockDocuments = [
+        { id: '1', titulo: 'Politica de Seguridad', codigo: 'DOC-001', descripcion: 'Desc 1' },
+        { id: '2', titulo: 'Matriz de Peligros', codigo: 'DOC-002', descripcion: 'Desc 2' },
+      ]
+
+      useDocumentStore.setState({ documents: mockDocuments as any })
+
+      const results = useDocumentStore.getState().searchDocuments('politica')
+
+      expect(results).toHaveLength(1)
+      expect(results[0].titulo).toBe('Politica de Seguridad')
+    })
+
+    it('should search documents by code', () => {
+      const mockDocuments = [
+        { id: '1', titulo: 'Doc 1', codigo: 'DOC-001', descripcion: 'Desc 1' },
+        { id: '2', titulo: 'Doc 2', codigo: 'DOC-002', descripcion: 'Desc 2' },
+      ]
+
+      useDocumentStore.setState({ documents: mockDocuments as any })
+
+      const results = useDocumentStore.getState().searchDocuments('DOC-002')
+
+      expect(results).toHaveLength(1)
+      expect(results[0].codigo).toBe('DOC-002')
+    })
+  })
+
+  describe('filter by date range', () => {
+    it('should filter documents by fechaDesde', () => {
+      const mockDocuments = [
+        { id: '1', titulo: 'Doc 1', fechaCreacion: new Date('2024-01-01') },
+        { id: '2', titulo: 'Doc 2', fechaCreacion: new Date('2024-06-01') },
+      ]
+
+      useDocumentStore.setState({
+        documents: mockDocuments as any,
+        filter: { fechaDesde: new Date('2024-05-01') },
+      })
+
+      const filtered = useDocumentStore.getState().getFilteredDocuments()
+
+      expect(filtered).toHaveLength(1)
+      expect(filtered[0].id).toBe('2')
+    })
+
+    it('should filter documents by fechaHasta', () => {
+      const mockDocuments = [
+        { id: '1', titulo: 'Doc 1', fechaCreacion: new Date('2024-01-01') },
+        { id: '2', titulo: 'Doc 2', fechaCreacion: new Date('2024-06-01') },
+      ]
+
+      useDocumentStore.setState({
+        documents: mockDocuments as any,
+        filter: { fechaHasta: new Date('2024-03-01') },
+      })
+
+      const filtered = useDocumentStore.getState().getFilteredDocuments()
+
+      expect(filtered).toHaveLength(1)
+      expect(filtered[0].id).toBe('1')
+    })
+  })
 })

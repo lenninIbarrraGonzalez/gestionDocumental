@@ -31,6 +31,7 @@ interface WorkerState {
   getWorkersByCompany: (empresaId: string) => Worker[]
   getActiveWorkers: () => Worker[]
   getWorkerById: (id: string) => Worker | undefined
+  searchWorkers: (query: string) => Worker[]
 }
 
 export const useWorkerStore = create<WorkerState>((set, get) => ({
@@ -149,5 +150,16 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
 
   getWorkerById: (id: string) => {
     return get().workers.find((w) => w.id === id)
+  },
+
+  searchWorkers: (query: string) => {
+    const search = query.toLowerCase()
+    return get().workers.filter(
+      (w) =>
+        w.nombres.toLowerCase().includes(search) ||
+        w.apellidos.toLowerCase().includes(search) ||
+        w.documento.includes(search) ||
+        w.cargo.toLowerCase().includes(search)
+    )
   },
 }))

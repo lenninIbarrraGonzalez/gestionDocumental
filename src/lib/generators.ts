@@ -37,24 +37,30 @@ export function generateSlug(text: string): string {
 }
 
 /**
- * Hash password using SHA-256 (for demo purposes - use bcrypt in production)
+ * Simple hash function for demo purposes (synchronous)
+ * In production, use bcrypt or similar
  */
-export async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-
-  if (typeof crypto !== 'undefined' && crypto.subtle) {
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+function simpleHash(str: string): string {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i)
   }
+  return (hash >>> 0).toString(16).padStart(8, '0')
+}
 
-  // Fallback for environments without crypto.subtle
-  let hash = 0
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i)
-    hash = (hash << 5) - hash + char
-    hash = hash & hash
-  }
-  return Math.abs(hash).toString(16)
+/**
+ * Hash password (synchronous version for demo purposes)
+ * In production, use bcrypt or similar
+ */
+export function hashPassword(password: string): string {
+  // Add a salt prefix for basic security
+  const salted = `demo_salt_${password}`
+  return simpleHash(salted)
+}
+
+/**
+ * Verify password against hash
+ */
+export function verifyPassword(password: string, hash: string): boolean {
+  return hashPassword(password) === hash
 }

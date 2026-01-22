@@ -226,4 +226,170 @@ describe('AuditStore', () => {
       expect(entityLogs[0].entidadId).toBe('doc1')
     })
   })
+
+  describe('fetchLogs', () => {
+    it('should fetch logs from database', async () => {
+      const { db } = await import('@/lib/db')
+      const mockLogs = [
+        { id: '1', entidad: 'documents', accion: 'CREATE', timestamp: new Date() },
+        { id: '2', entidad: 'companies', accion: 'UPDATE', timestamp: new Date() },
+      ]
+      vi.mocked(db.auditLogs.orderBy).mockReturnValue({
+        reverse: vi.fn().mockReturnValue({
+          toArray: vi.fn().mockResolvedValue(mockLogs),
+        }),
+      } as any)
+
+      await act(async () => {
+        await useAuditStore.getState().fetchLogs()
+      })
+
+      const state = useAuditStore.getState()
+      expect(state.logs).toHaveLength(2)
+      expect(state.isLoading).toBe(false)
+    })
+
+    it('should set error on fetch failure', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.auditLogs.orderBy).mockReturnValue({
+        reverse: vi.fn().mockReturnValue({
+          toArray: vi.fn().mockRejectedValue(new Error('DB error')),
+        }),
+      } as any)
+
+      await act(async () => {
+        await useAuditStore.getState().fetchLogs()
+      })
+
+      const state = useAuditStore.getState()
+      expect(state.error).toBe('Error al cargar logs de auditoría')
+      expect(state.isLoading).toBe(false)
+    })
+  })
+
+  describe('logAction', () => {
+    it('should create a new audit log', async () => {
+      const { db } = await import('@/lib/db')
+      vi.mocked(db.auditLogs.add).mockResolvedValue(undefined as any)
+
+      const logData = {
+        entidad: 'documents',
+        entidadId: 'doc-1',
+        accion: 'CREATE' as const,
+        usuarioId: 'user-1',
+        usuarioEmail: 'test@test.com',
+        descripcion: 'Created document',
+        cambios: { titulo: { antes: '', despues: 'New Title' } },
+      }
+
+      const result = await useAuditStore.getState().logAction(logData)
+
+      expect(result.entidad).toBe('documents')
+      expect(result.accion).toBe('CREATE')
+      expect(result.id).toBeDefined()
+      expect(useAuditStore.getState().logs).toHaveLength(1)
+    })
+  })
+
+  describe('getFilteredLogs - additional filters', () => {
+    it('should filter by entidadId', () => {
+      const mockLogs = [
+        { id: '1', entidad: 'documents', entidadId: 'doc1' },
+        { id: '2', entidad: 'documents', entidadId: 'doc2' },
+      ]
+
+      useAuditStore.setState({
+        logs: mockLogs as any,
+        filter: { entidadId: 'doc1' },
+      })
+
+      const filtered = useAuditStore.getState().getFilteredLogs()
+
+      expect(filtered).toHaveLength(1)
+      expect(filtered[0].entidadId).toBe('doc1')
+    })
+  })
+
+  describe('getTotalPages', () => {
+    it('should calculate total pages correctly', () => {
+      const mockLogs = Array.from({ length: 100 }, (_, i) => ({
+        id: `${i + 1}`,
+        entidad: 'documents',
+        accion: 'VIEW',
+      }))
+
+      useAuditStore.setState({
+        logs: mockLogs as any,
+        pageSize: 25,
+      })
+
+      const totalPages = useAuditStore.getState().getTotalPages()
+
+      expect(totalPages).toBe(4)
+    })
+
+    it('should return 1 when no logs', () => {
+      useAuditStore.setState({
+        logs: [],
+        pageSize: 25,
+      })
+
+      const totalPages = useAuditStore.getState().getTotalPages()
+
+      expect(totalPages).toBe(0)
+    })
+  })
+
+  describe('getLogsByUser', () => {
+    it('should return logs for specific user', () => {
+      const mockLogs = [
+        { id: '1', usuarioId: 'user-1' },
+        { id: '2', usuarioId: 'user-2' },
+        { id: '3', usuarioId: 'user-1' },
+      ]
+
+      useAuditStore.setState({ logs: mockLogs as any })
+
+      const userLogs = useAuditStore.getState().getLogsByUser('user-1')
+
+      expect(userLogs).toHaveLength(2)
+      expect(userLogs.every((l) => l.usuarioId === 'user-1')).toBe(true)
+    })
+  })
+})
+
+describe('createAuditDescription', () => {
+  it('should create description without details', async () => {
+    const { createAuditDescription } = await import('./audit-store')
+
+    const description = createAuditDescription('CREATE', 'documents')
+
+    expect(description).toBe('Creó documento')
+  })
+
+  it('should create description with details', async () => {
+    const { createAuditDescription } = await import('./audit-store')
+
+    const description = createAuditDescription('UPDATE', 'companies', 'Empresa ABC')
+
+    expect(description).toBe('Actualizó empresa: Empresa ABC')
+  })
+
+  it('should handle unknown entity', async () => {
+    const { createAuditDescription } = await import('./audit-store')
+
+    const description = createAuditDescription('DELETE', 'unknown')
+
+    expect(description).toBe('Eliminó unknown')
+  })
+
+  it('should handle all action types', async () => {
+    const { createAuditDescription } = await import('./audit-store')
+
+    expect(createAuditDescription('VIEW', 'documents')).toContain('Visualizó')
+    expect(createAuditDescription('LOGIN', 'users')).toContain('Inició sesión')
+    expect(createAuditDescription('LOGOUT', 'users')).toContain('Cerró sesión')
+    expect(createAuditDescription('STATUS_CHANGE', 'documents')).toContain('Cambió estado')
+    expect(createAuditDescription('EXPORT', 'documents')).toContain('Exportó')
+  })
 })

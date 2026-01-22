@@ -29,6 +29,7 @@ interface CompanyState {
   getFilteredCompanies: () => Company[]
   getActiveCompanies: () => Company[]
   getCompanyById: (id: string) => Company | undefined
+  searchCompanies: (query: string) => Company[]
 }
 
 export const useCompanyStore = create<CompanyState>((set, get) => ({
@@ -139,5 +140,16 @@ export const useCompanyStore = create<CompanyState>((set, get) => ({
 
   getCompanyById: (id: string) => {
     return get().companies.find((c) => c.id === id)
+  },
+
+  searchCompanies: (query: string) => {
+    const search = query.toLowerCase()
+    return get().companies.filter(
+      (c) =>
+        c.razonSocial.toLowerCase().includes(search) ||
+        c.nombreComercial?.toLowerCase().includes(search) ||
+        c.nit.includes(search) ||
+        c.ciudad.toLowerCase().includes(search)
+    )
   },
 }))

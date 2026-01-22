@@ -43,6 +43,9 @@ interface DocumentState {
   getPaginatedDocuments: () => Document[]
   getTotalPages: () => number
   getDocumentsByStatus: (status: DocumentStatus) => Document[]
+  getDocumentsByCompany: (empresaId: string) => Document[]
+  getDocumentsByType: (tipo: string) => Document[]
+  searchDocuments: (query: string) => Document[]
   getExpiringDocuments: (days: number) => Document[]
   getExpiredDocuments: () => Document[]
 }
@@ -256,6 +259,24 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
   getDocumentsByStatus: (status: DocumentStatus) => {
     return get().documents.filter((d) => d.estado === status)
+  },
+
+  getDocumentsByCompany: (empresaId: string) => {
+    return get().documents.filter((d) => d.empresaId === empresaId)
+  },
+
+  getDocumentsByType: (tipo: string) => {
+    return get().documents.filter((d) => d.tipo === tipo)
+  },
+
+  searchDocuments: (query: string) => {
+    const search = query.toLowerCase()
+    return get().documents.filter(
+      (d) =>
+        d.titulo.toLowerCase().includes(search) ||
+        d.codigo.toLowerCase().includes(search) ||
+        d.descripcion?.toLowerCase().includes(search)
+    )
   },
 
   getExpiringDocuments: (days: number) => {
