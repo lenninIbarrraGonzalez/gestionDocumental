@@ -135,6 +135,18 @@ class GestionDocumentalDB extends Dexie {
       notifications: 'id, usuarioId, leida, fechaCreacion',
       workflowHistory: 'id, documentoId, timestamp',
     })
+
+    // Version 2: Add compound indexes for optimized queries
+    this.version(2).stores({
+      documents:
+        'id, codigo, tipo, estado, empresaId, trabajadorId, creadoPor, fechaCreacion, fechaVigencia, [estado+empresaId], [tipo+estado], [empresaId+tipo], [estado+fechaCreacion]',
+      companies: 'id, nit, razonSocial, activa',
+      workers: 'id, documento, empresaId, activo, [empresaId+activo]',
+      users: 'id, email, rol, activo, [rol+activo]',
+      auditLogs: 'id, entidad, entidadId, accion, usuarioId, timestamp, [entidad+accion], [usuarioId+timestamp]',
+      notifications: 'id, usuarioId, leida, fechaCreacion, [usuarioId+leida]',
+      workflowHistory: 'id, documentoId, timestamp, [documentoId+timestamp]',
+    })
   }
 }
 
