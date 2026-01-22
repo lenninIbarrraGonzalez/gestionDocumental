@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useAuthStore } from '@/stores/auth-store'
 import { useAuditStore } from '@/stores/audit-store'
 import { hashPassword, verifyPassword } from '@/lib/generators'
+import { STORAGE_KEYS } from '@/lib/constants'
 
 // Mock db
 vi.mock('@/lib/db', () => ({
@@ -21,11 +22,14 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
+// Pre-compute the hash for consistent test results
+const testPasswordHash = hashPassword('Admin123!')
+
 describe('Authentication Flow Integration', () => {
   const mockUser = {
     id: 'user-admin-001',
     email: 'admin@arl.com',
-    passwordHash: hashPassword('Admin123!'),
+    passwordHash: testPasswordHash,
     nombre: 'Carlos',
     apellido: 'Rodriguez',
     rol: 'admin' as const,
@@ -35,11 +39,15 @@ describe('Authentication Flow Integration', () => {
   }
 
   beforeEach(() => {
+    // Clear login attempts storage before each test
+    localStorage.removeItem(STORAGE_KEYS.LOGIN_ATTEMPTS)
+
     useAuthStore.setState({
       user: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      lastActivity: null,
     })
     useAuditStore.setState({
       logs: [],
@@ -83,7 +91,7 @@ describe('Authentication Flow Integration', () => {
       const state = useAuthStore.getState()
       expect(state.isAuthenticated).toBe(false)
       expect(state.user).toBeNull()
-      expect(state.error).toBeTruthy()
+      expect(state.error).toContain('Credenciales invalidas')
     })
 
     it('should fail login with non-existent user', async () => {
@@ -99,7 +107,7 @@ describe('Authentication Flow Integration', () => {
 
       const state = useAuthStore.getState()
       expect(state.isAuthenticated).toBe(false)
-      expect(state.error).toBeTruthy()
+      expect(state.error).toContain('Credenciales invalidas')
     })
 
     it('should fail login with inactive user', async () => {
@@ -239,13 +247,14 @@ describe('Authentication Flow Integration', () => {
       expect(verifyPassword('wrongpassword', hash)).toBe(false)
     })
 
-    it('should generate different hashes for same password', () => {
+    it('should generate different hashes for same password (bcrypt uses random salt)', () => {
       const password = 'TestPassword123!'
       const hash1 = hashPassword(password)
       const hash2 = hashPassword(password)
 
-      // In a real implementation with salt, these would be different
-      // Our simple hash is deterministic, so they're the same
+      // bcrypt generates unique hashes due to random salts
+      expect(hash1).not.toBe(hash2)
+      // But both should verify correctly
       expect(verifyPassword(password, hash1)).toBe(true)
       expect(verifyPassword(password, hash2)).toBe(true)
     })
