@@ -1,3 +1,6 @@
+// Seed data version - increment when password hashing algorithm changes
+export const SEED_VERSION = 2 // v2 = bcrypt hashing
+
 // Document status values
 export const DOCUMENT_STATUS = {
   BORRADOR: 'borrador',
@@ -108,6 +111,14 @@ export const STORAGE_KEYS = {
   AUTH: 'auth-storage',
   THEME: 'theme',
   SIDEBAR_COLLAPSED: 'sidebar-collapsed',
+  LOGIN_ATTEMPTS: 'login-attempts',
+} as const
+
+// Security configuration
+export const SECURITY_CONFIG = {
+  MAX_LOGIN_ATTEMPTS: 5,
+  LOCKOUT_DURATION_MS: 15 * 60 * 1000, // 15 minutes
+  SESSION_TIMEOUT_MS: 30 * 60 * 1000, // 30 minutes
 } as const
 
 // Document code prefixes
@@ -131,4 +142,23 @@ export const DOCUMENT_PREFIXES: Record<string, string> = {
   CERT_APOR: 'CERT',
   PODER: 'POD',
   default: 'DOC',
+}
+
+// Badge variant mapping for status colors
+export type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline'
+
+export const STATUS_VARIANT_MAP: Record<string, BadgeVariant> = {
+  success: 'default',
+  warning: 'secondary',
+  destructive: 'destructive',
+  default: 'secondary',
+  secondary: 'secondary',
+  outline: 'outline',
+}
+
+/**
+ * Get badge variant from status config color
+ */
+export function getStatusBadgeVariant(statusColor: string): BadgeVariant {
+  return STATUS_VARIANT_MAP[statusColor] || 'secondary'
 }
