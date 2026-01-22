@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
+import { FullPageSpinner } from '@/components/shared/loading-spinner'
 import type { UserRole } from '@/types'
 
 interface AuthGuardProps {
@@ -15,11 +16,19 @@ const PUBLIC_PATHS = ['/login', '/recuperar-contrasena']
 export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const [isHydrated, setIsHydrated] = useState(false)
 
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
 
+  // Wait for Zustand to hydrate from localStorage
   useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isHydrated) return
+
     const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path))
 
     // If not authenticated and trying to access protected route
@@ -41,17 +50,18 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
         return
       }
     }
-  }, [isAuthenticated, pathname, router, allowedRoles, user])
+  }, [isHydrated, isAuthenticated, pathname, router, allowedRoles, user])
 
-  // Don't render children until auth check is complete
-  const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path))
-
-  if (!isAuthenticated && !isPublicPath) {
-    return null
+  // Show loading state while hydrating or during redirects
+  if (!isHydrated) {
+    return <FullPageSpinner />
   }
 
-  if (isAuthenticated && isPublicPath) {
-    return null
+  const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path))
+
+  // Redirect in progress - show loading
+  if ((!isAuthenticated && !isPublicPath) || (isAuthenticated && isPublicPath)) {
+    return <FullPageSpinner />
   }
 
   return <>{children}</>
