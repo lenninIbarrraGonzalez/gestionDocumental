@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { DOCUMENT_TYPES, STATUS_CONFIG } from '@/lib/constants'
+import { DOCUMENT_TYPES, STATUS_CONFIG, getStatusBadgeVariant } from '@/lib/constants'
 import { formatDate } from '@/lib/formatters'
 import type { Document } from '@/lib/db'
 import { cn } from '@/lib/utils'
@@ -50,17 +50,8 @@ export function DocumentTable({
     const config = STATUS_CONFIG[estado as keyof typeof STATUS_CONFIG]
     if (!config) return <Badge variant="secondary">{estado}</Badge>
 
-    const variantMap: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-      success: 'default',
-      warning: 'secondary',
-      destructive: 'destructive',
-      default: 'secondary',
-      secondary: 'secondary',
-      outline: 'outline',
-    }
-
     return (
-      <Badge variant={variantMap[config.color] || 'secondary'}>
+      <Badge variant={getStatusBadgeVariant(config.color)}>
         {config.label}
       </Badge>
     )
