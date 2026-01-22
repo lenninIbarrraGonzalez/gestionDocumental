@@ -105,9 +105,9 @@ export default function DocumentosPage() {
         </div>
         <PermissionGate module={MODULES.DOCUMENTS} action={ACTIONS.CREATE}>
           <Link href="/documentos/nuevo">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo Documento
+            <Button size="icon" className="sm:w-auto sm:px-4">
+              <Plus className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Nuevo Documento</span>
             </Button>
           </Link>
         </PermissionGate>

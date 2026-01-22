@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Pencil, Trash2, Clock, User, Calendar, FileText } from 'lucide-react'
+import { Pencil, Trash2, Clock, User, Calendar, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -52,14 +52,6 @@ export function DocumentDetail({
             {document.codigo}
           </p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          aria-label="Cerrar detalle"
-        >
-          <X className="h-4 w-4" />
-        </Button>
       </div>
 
       {/* Tabs Content */}
