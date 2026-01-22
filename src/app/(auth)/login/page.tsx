@@ -7,8 +7,9 @@ import { SeedService } from '@/lib/services/seed-service'
 import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '@/components/shared/loading-spinner'
 
-// Demo credentials only shown in development mode
-const isDevelopment = process.env.NODE_ENV === 'development'
+// Demo credentials shown when explicitly enabled or in development mode
+const showDemoCredentials = process.env.NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS === 'true' ||
+                            process.env.NODE_ENV === 'development'
 
 interface DemoCredential {
   rol: string
@@ -19,7 +20,7 @@ interface DemoCredential {
 
 // Demo credentials loaded from environment variables or defaults for development
 const getDemoCredentials = (): DemoCredential[] => {
-  if (!isDevelopment) return []
+  if (!showDemoCredentials) return []
 
   return [
     {
@@ -72,8 +73,8 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
-      <div className={`w-full ${isDevelopment ? 'max-w-4xl flex flex-col md:flex-row gap-6' : 'max-w-md'}`}>
-        <Card className={isDevelopment ? 'w-full md:w-1/2' : 'w-full'}>
+      <div className={`w-full ${showDemoCredentials ? 'max-w-4xl flex flex-col md:flex-row gap-6' : 'max-w-md'}`}>
+        <Card className={showDemoCredentials ? 'w-full md:w-1/2' : 'w-full'}>
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Gestion Documental ARL</CardTitle>
             <CardDescription>
@@ -88,12 +89,12 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        {isDevelopment && demoCredentials.length > 0 && (
+        {showDemoCredentials && demoCredentials.length > 0 && (
           <Card className="w-full md:w-1/2">
             <CardHeader>
               <CardTitle className="text-lg">Credenciales de Prueba</CardTitle>
               <CardDescription>
-                Solo visible en modo desarrollo
+                Haz clic en un rol para autocompletar
               </CardDescription>
             </CardHeader>
             <CardContent>
