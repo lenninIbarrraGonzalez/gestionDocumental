@@ -300,11 +300,15 @@ seedCompanies.forEach((company, companyIndex) => {
     let fechaVigencia: Date | undefined
     if (status === DOCUMENT_STATUS.APROBADO) {
       if (i % 4 === 0) {
-        fechaVigencia = daysFromNow(15) // Expiring soon
+        fechaVigencia = daysFromNow(3) // Vence en 3 días → alerta amarilla
       } else if (i % 5 === 0) {
-        fechaVigencia = daysAgo(5) // Already expired (but status not updated)
+        fechaVigencia = daysAgo(10) // Vencido hace 10 días → alerta roja
+      } else if (i % 6 === 0) {
+        fechaVigencia = daysFromNow(5) // Vence en 5 días → alerta amarilla
+      } else if (i % 7 === 0) {
+        fechaVigencia = daysAgo(3) // Vencido hace 3 días → alerta roja
       } else {
-        fechaVigencia = daysFromNow(180) // Normal expiration
+        fechaVigencia = daysFromNow(90) // Vigencia normal (sin alerta)
       }
     }
 
