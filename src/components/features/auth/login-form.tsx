@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -26,7 +26,12 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>
 
-export function LoginForm() {
+interface LoginFormProps {
+  defaultEmail?: string
+  defaultPassword?: string
+}
+
+export function LoginForm({ defaultEmail, defaultPassword }: LoginFormProps) {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
 
@@ -38,10 +43,16 @@ export function LoginForm() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   })
+
+  useEffect(() => {
+    if (defaultEmail) setValue('email', defaultEmail)
+    if (defaultPassword) setValue('password', defaultPassword)
+  }, [defaultEmail, defaultPassword, setValue])
 
   const onSubmit = async (data: LoginFormData) => {
     clearError()

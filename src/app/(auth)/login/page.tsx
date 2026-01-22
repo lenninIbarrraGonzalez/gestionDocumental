@@ -15,6 +15,7 @@ const demoCredentials = [
 
 export default function LoginPage() {
   const [isReady, setIsReady] = useState(false)
+  const [selectedCredentials, setSelectedCredentials] = useState<{email: string, password: string} | null>(null)
 
   useEffect(() => {
     const initData = async () => {
@@ -43,7 +44,10 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <LoginForm />
+            <LoginForm
+              defaultEmail={selectedCredentials?.email}
+              defaultPassword={selectedCredentials?.password}
+            />
           </CardContent>
         </Card>
 
@@ -57,7 +61,11 @@ export default function LoginPage() {
           <CardContent>
             <div className="space-y-4">
               {demoCredentials.map((cred) => (
-                <div key={cred.email} className="p-3 border rounded-lg space-y-2">
+                <div
+                  key={cred.email}
+                  className="p-3 border rounded-lg space-y-2 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => setSelectedCredentials({ email: cred.email, password: cred.password })}
+                >
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{cred.rol}</span>
                     <Badge className={cred.color}>{cred.rol}</Badge>
