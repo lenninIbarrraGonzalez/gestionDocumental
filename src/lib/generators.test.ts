@@ -4,6 +4,7 @@ import {
   generateDocumentCode,
   generateSlug,
   hashPassword,
+  verifyPassword,
 } from './generators'
 
 describe('generators', () => {
@@ -49,18 +50,29 @@ describe('generators', () => {
   })
 
   describe('hashPassword', () => {
-    it('should hash password consistently', async () => {
-      const hash1 = await hashPassword('password123')
-      const hash2 = await hashPassword('password123')
+    it('should hash password and verify correctly', () => {
+      const password = 'password123'
+      const hash = hashPassword(password)
 
-      expect(hash1).toBe(hash2)
+      // bcrypt hashes are different each time due to random salt
+      expect(hash).not.toBe(password)
+      expect(verifyPassword(password, hash)).toBe(true)
     })
 
-    it('should produce different hashes for different passwords', async () => {
-      const hash1 = await hashPassword('password1')
-      const hash2 = await hashPassword('password2')
+    it('should produce different hashes for same password (bcrypt uses random salt)', () => {
+      const hash1 = hashPassword('password123')
+      const hash2 = hashPassword('password123')
 
+      // bcrypt generates unique hashes due to random salts
       expect(hash1).not.toBe(hash2)
+      // But both should verify correctly
+      expect(verifyPassword('password123', hash1)).toBe(true)
+      expect(verifyPassword('password123', hash2)).toBe(true)
+    })
+
+    it('should not verify incorrect password', () => {
+      const hash = hashPassword('correctPassword')
+      expect(verifyPassword('wrongPassword', hash)).toBe(false)
     })
   })
 })

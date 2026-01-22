@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { seedData } from '@/data/seed'
+import { SEED_VERSION, STORAGE_KEYS } from '@/lib/constants'
 
 export class SeedService {
   /**
@@ -124,5 +125,52 @@ export class SeedService {
     if (data.auditLogs) await db.auditLogs.bulkAdd(data.auditLogs)
     if (data.notifications) await db.notifications.bulkAdd(data.notifications)
     if (data.workflowHistory) await db.workflowHistory.bulkAdd(data.workflowHistory)
+  }
+
+  /**
+   * Get current seed version from localStorage
+   */
+  private static getSeedVersion(): number {
+    if (typeof window === 'undefined') return 0
+    const stored = localStorage.getItem('seed-version')
+    return stored ? parseInt(stored, 10) : 0
+  }
+
+  /**
+   * Save seed version to localStorage
+   */
+  private static setSeedVersion(): void {
+    if (typeof window === 'undefined') return
+    localStorage.setItem('seed-version', SEED_VERSION.toString())
+  }
+
+  /**
+   * Seed if version changed or database is empty
+   * This handles the case where password hashing algorithm changed
+   */
+  static async seedIfVersionChanged(): Promise<boolean> {
+    const currentVersion = this.getSeedVersion()
+
+    if (currentVersion < SEED_VERSION) {
+      // Clear login attempts to avoid lockout after re-seed
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(STORAGE_KEYS.LOGIN_ATTEMPTS)
+      }
+
+      await this.clearAll()
+      await this.seedAll()
+      this.setSeedVersion()
+      return true
+    }
+
+    // If not seeded at all, seed and set version
+    const isSeeded = await this.isSeeded()
+    if (!isSeeded) {
+      await this.seedAll()
+      this.setSeedVersion()
+      return true
+    }
+
+    return false
   }
 }

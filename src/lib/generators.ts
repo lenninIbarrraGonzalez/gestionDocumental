@@ -1,3 +1,5 @@
+import bcrypt from 'bcryptjs'
+
 /**
  * Generate unique ID using crypto API
  */
@@ -36,31 +38,34 @@ export function generateSlug(text: string): string {
     .replace(/-+/g, '-') // Remove consecutive hyphens
 }
 
-/**
- * Simple hash function for demo purposes (synchronous)
- * In production, use bcrypt or similar
- */
-function simpleHash(str: string): string {
-  let hash = 5381
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash * 33) ^ str.charCodeAt(i)
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0')
-}
+// Password hashing configuration
+const BCRYPT_ROUNDS = 10
 
 /**
- * Hash password (synchronous version for demo purposes)
- * In production, use bcrypt or similar
+ * Hash password using bcrypt (synchronous version for seed data)
+ * Uses bcryptjs which works in both Node.js and browser environments
  */
 export function hashPassword(password: string): string {
-  // Add a salt prefix for basic security
-  const salted = `demo_salt_${password}`
-  return simpleHash(salted)
+  return bcrypt.hashSync(password, BCRYPT_ROUNDS)
 }
 
 /**
- * Verify password against hash
+ * Async password hashing using bcrypt (recommended for runtime use)
+ */
+export async function hashPasswordAsync(password: string): Promise<string> {
+  return bcrypt.hash(password, BCRYPT_ROUNDS)
+}
+
+/**
+ * Verify password against bcrypt hash (synchronous)
  */
 export function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash
+  return bcrypt.compareSync(password, hash)
+}
+
+/**
+ * Async password verification using bcrypt (recommended for runtime use)
+ */
+export async function verifyPasswordAsync(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash)
 }
