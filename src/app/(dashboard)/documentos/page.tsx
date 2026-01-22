@@ -1,0 +1,287 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+import { useDocumentStore } from '@/stores/document-store'
+import { useCompanyStore } from '@/stores/company-store'
+import { useAuthStore } from '@/stores/auth-store'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { DocumentDetail } from '@/components/features/documents/document-detail'
+import { DocumentForm } from '@/components/features/documents/document-form'
+import type { Document } from '@/lib/db'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Plus, Search, Eye, Edit, FileText } from 'lucide-react'
+import { formatDate } from '@/lib/formatters'
+import { STATUS_CONFIG, DOCUMENT_TYPES } from '@/lib/constants'
+
+export default function DocumentosPage() {
+  const documents = useDocumentStore((state) => state.documents)
+  const filter = useDocumentStore((state) => state.filter)
+  const setFilter = useDocumentStore((state) => state.setFilter)
+  const getFilteredDocuments = useDocumentStore((state) => state.getFilteredDocuments)
+  const updateDocument = useDocumentStore((state) => state.updateDocument)
+  const deleteDocument = useDocumentStore((state) => state.deleteDocument)
+  const changeStatus = useDocumentStore((state) => state.changeStatus)
+  const companies = useCompanyStore((state) => state.companies)
+  const user = useAuthStore((state) => state.user)
+
+  const [search, setSearch] = useState('')
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
+  const [dialogMode, setDialogMode] = useState<'view' | 'edit' | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const filteredDocs = getFilteredDocuments()
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    setFilter({ search: value })
+  }
+
+  const handleStatusChange = (value: string) => {
+    if (value === 'all') {
+      setFilter({ estado: undefined })
+    } else {
+      setFilter({ estado: value as any })
+    }
+  }
+
+  const handleTypeChange = (value: string) => {
+    if (value === 'all') {
+      setFilter({ tipo: undefined })
+    } else {
+      setFilter({ tipo: value })
+    }
+  }
+
+  const getCompanyName = (empresaId: string) => {
+    const company = companies.find((c) => c.id === empresaId)
+    return company?.razonSocial || 'N/A'
+  }
+
+  const handleView = (doc: Document) => {
+    setSelectedDocument(doc)
+    setDialogMode('view')
+  }
+
+  const handleEdit = (doc: Document) => {
+    setSelectedDocument(doc)
+    setDialogMode('edit')
+  }
+
+  const handleCloseDialog = () => {
+    setSelectedDocument(null)
+    setDialogMode(null)
+  }
+
+  const handleDelete = async (doc: Document) => {
+    if (confirm('¿Estás seguro de eliminar este documento?')) {
+      await deleteDocument(doc.id)
+      handleCloseDialog()
+    }
+  }
+
+  const handleStatusChangeAction = async (doc: Document, newStatus: string) => {
+    if (user) {
+      await changeStatus(doc.id, newStatus as any, user.id)
+    }
+  }
+
+  const handleEditSubmit = async (data: any) => {
+    if (selectedDocument && user) {
+      setIsSubmitting(true)
+      try {
+        await updateDocument(selectedDocument.id, data, user.id)
+        handleCloseDialog()
+      } finally {
+        setIsSubmitting(false)
+      }
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Documentos</h1>
+          <p className="text-muted-foreground">
+            Gestiona los documentos del sistema
+          </p>
+        </div>
+        <Link href="/documentos/nuevo">
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo Documento
+          </Button>
+        </Link>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filtros</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar documentos..."
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select onValueChange={handleStatusChange} defaultValue="all">
+              <SelectTrigger>
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                  <SelectItem key={key} value={key}>
+                    {config.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select onValueChange={handleTypeChange} defaultValue="all">
+              <SelectTrigger>
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los tipos</SelectItem>
+                {Object.entries(DOCUMENT_TYPES).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Documents Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Documentos</CardTitle>
+          <CardDescription>
+            {filteredDocs.length} documento(s) encontrado(s)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Codigo</TableHead>
+                <TableHead>Titulo</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Empresa</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Fecha</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredDocs.map((doc) => (
+                <TableRow key={doc.id}>
+                  <TableCell className="font-medium">{doc.codigo}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      {doc.titulo}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {DOCUMENT_TYPES[doc.tipo as keyof typeof DOCUMENT_TYPES] || doc.tipo}
+                  </TableCell>
+                  <TableCell>{getCompanyName(doc.empresaId)}</TableCell>
+                  <TableCell>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        STATUS_CONFIG[doc.estado as keyof typeof STATUS_CONFIG]?.color || 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {STATUS_CONFIG[doc.estado as keyof typeof STATUS_CONFIG]?.label || doc.estado}
+                    </span>
+                  </TableCell>
+                  <TableCell>{formatDate(doc.fechaCreacion)}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => handleView(doc)}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(doc)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredDocs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    No hay documentos que coincidan con los filtros
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* View Dialog */}
+      <Dialog open={dialogMode === 'view'} onOpenChange={() => handleCloseDialog()}>
+        <DialogContent className="max-w-2xl">
+          {selectedDocument && (
+            <DocumentDetail
+              document={selectedDocument}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onStatusChange={handleStatusChangeAction}
+              onClose={handleCloseDialog}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={dialogMode === 'edit'} onOpenChange={() => handleCloseDialog()}>
+        <DialogContent className="max-w-2xl">
+          {selectedDocument && (
+            <DocumentForm
+              initialData={{
+                titulo: selectedDocument.titulo,
+                descripcion: selectedDocument.descripcion,
+                tipo: selectedDocument.tipo,
+                empresaId: selectedDocument.empresaId,
+                trabajadorId: selectedDocument.trabajadorId,
+                fechaVigencia: selectedDocument.fechaVigencia,
+              }}
+              onSubmit={handleEditSubmit}
+              onCancel={handleCloseDialog}
+              isSubmitting={isSubmitting}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
