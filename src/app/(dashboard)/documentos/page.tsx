@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useDocumentStore } from '@/stores/document-store'
 import { useCompanyStore } from '@/stores/company-store'
@@ -31,15 +32,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Search, Eye, Edit, FileText } from 'lucide-react'
+import { Plus, Search, Eye, Edit, FileText, X, AlertTriangle, XCircle } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/formatters'
 import { STATUS_CONFIG, DOCUMENT_TYPES } from '@/lib/constants'
 
 export default function DocumentosPage() {
+  const searchParams = useSearchParams()
   const documents = useDocumentStore((state) => state.documents)
   const filter = useDocumentStore((state) => state.filter)
   const setFilter = useDocumentStore((state) => state.setFilter)
   const getFilteredDocuments = useDocumentStore((state) => state.getFilteredDocuments)
+  const getExpiredDocuments = useDocumentStore((state) => state.getExpiredDocuments)
+  const getExpiringDocuments = useDocumentStore((state) => state.getExpiringDocuments)
   const updateDocument = useDocumentStore((state) => state.updateDocument)
   const deleteDocument = useDocumentStore((state) => state.deleteDocument)
   const changeStatus = useDocumentStore((state) => state.changeStatus)
@@ -50,8 +55,29 @@ export default function DocumentosPage() {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [dialogMode, setDialogMode] = useState<'view' | 'edit' | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [vigenciaFilter, setVigenciaFilter] = useState<'all' | 'vencido' | 'proxima'>('all')
 
-  const filteredDocs = getFilteredDocuments()
+  // Handle query params for vigencia filter
+  useEffect(() => {
+    const vigenciaParam = searchParams.get('vigencia')
+    if (vigenciaParam === 'vencido' || vigenciaParam === 'proxima') {
+      setVigenciaFilter(vigenciaParam)
+    } else {
+      setVigenciaFilter('all')
+    }
+  }, [searchParams])
+
+  // Get filtered documents based on vigencia filter or regular filters
+  const getDocumentsForDisplay = () => {
+    if (vigenciaFilter === 'vencido') {
+      return getExpiredDocuments()
+    } else if (vigenciaFilter === 'proxima') {
+      return getExpiringDocuments(7)
+    }
+    return getFilteredDocuments()
+  }
+
+  const filteredDocs = getDocumentsForDisplay()
 
   const handleSearchChange = (value: string) => {
     setSearch(value)
@@ -183,6 +209,47 @@ export default function DocumentosPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Vigencia Filter Active Banner */}
+      {vigenciaFilter !== 'all' && (
+        <div className={`flex items-center justify-between rounded-lg border p-4 ${
+          vigenciaFilter === 'vencido'
+            ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950'
+            : 'border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-950'
+        }`}>
+          <div className="flex items-center gap-3">
+            {vigenciaFilter === 'vencido' ? (
+              <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+            )}
+            <div>
+              <p className={`font-medium ${
+                vigenciaFilter === 'vencido'
+                  ? 'text-red-800 dark:text-red-200'
+                  : 'text-yellow-800 dark:text-yellow-200'
+              }`}>
+                {vigenciaFilter === 'vencido'
+                  ? 'Mostrando documentos vencidos'
+                  : 'Mostrando documentos proximos a vencer (7 dias)'}
+              </p>
+              <p className={`text-sm ${
+                vigenciaFilter === 'vencido'
+                  ? 'text-red-700 dark:text-red-300'
+                  : 'text-yellow-700 dark:text-yellow-300'
+              }`}>
+                {filteredDocs.length} documento(s)
+              </p>
+            </div>
+          </div>
+          <Link href="/documentos">
+            <Button variant="outline" size="sm">
+              <X className="h-4 w-4 mr-2" />
+              Quitar filtro
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* Documents Table */}
       <Card>
