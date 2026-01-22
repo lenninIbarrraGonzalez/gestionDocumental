@@ -54,10 +54,7 @@ export const useUserStore = create<UserState>((set, get) => ({
     try {
       const users = await db.users.toArray()
       // Remove password hash from users
-      const usersWithoutHash = users.map(({ passwordHash: _, ...user }) => {
-        void _
-        return user
-      })
+      const usersWithoutHash = users.map(({ passwordHash: _passwordHash, ...user }) => user)
       set({ users: usersWithoutHash, isLoading: false })
     } catch (error) {
       set({ error: 'Error al cargar usuarios', isLoading: false })
@@ -81,8 +78,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     await db.users.add(newUser)
 
-    const { passwordHash, ...userWithoutHash } = newUser
-    void passwordHash
+    const { passwordHash: _passwordHash, ...userWithoutHash } = newUser
     set((state) => ({ users: [...state.users, userWithoutHash] }))
 
     return userWithoutHash
@@ -100,8 +96,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     await db.users.update(id, updatedUser)
 
-    const { passwordHash, ...userWithoutHash } = updatedUser
-    void passwordHash
+    const { passwordHash: _passwordHash, ...userWithoutHash } = updatedUser
     set((state) => ({
       users: state.users.map((u) => (u.id === id ? userWithoutHash : u)),
     }))

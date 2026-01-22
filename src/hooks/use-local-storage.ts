@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
 type SetValue<T> = T | ((val: T) => T)
 
@@ -20,12 +20,18 @@ export function useLocalStorage<T>(
     }
   })
 
-  // Set value function
+  // Use ref to avoid stale closure in setValue callback
+  const storedValueRef = useRef(storedValue)
+  useEffect(() => {
+    storedValueRef.current = storedValue
+  }, [storedValue])
+
+  // Set value function - use ref to get current value to avoid stale closure
   const setValue = useCallback(
     (value: SetValue<T>) => {
       try {
         const valueToStore =
-          value instanceof Function ? value(storedValue) : value
+          value instanceof Function ? value(storedValueRef.current) : value
         setStoredValue(valueToStore)
 
         if (typeof window !== 'undefined') {
@@ -35,10 +41,10 @@ export function useLocalStorage<T>(
         console.error('Error saving to localStorage:', error)
       }
     },
-    [key, storedValue]
+    [key]
   )
 
-  // Remove value function
+  // Remove value function - initialValue is stable so no ref needed
   const removeValue = useCallback(() => {
     try {
       if (typeof window !== 'undefined') {
