@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { act } from '@testing-library/react'
 import { useCompanyStore } from './company-store'
+import { PermissionError } from '@/lib/store-permission-middleware'
 
 // Mock db
 vi.mock('@/lib/db', () => ({
@@ -18,6 +19,15 @@ vi.mock('@/lib/db', () => ({
         }),
       }),
     },
+  },
+}))
+
+// Mock auth store
+vi.mock('@/stores/auth-store', () => ({
+  useAuthStore: {
+    getState: vi.fn(() => ({
+      user: { id: '1', rol: 'admin' },
+    })),
   },
 }))
 
@@ -251,7 +261,7 @@ describe('CompanyStore', () => {
       })
 
       const state = useCompanyStore.getState()
-      expect(state.error).toBe('Error al cargar empresas')
+      expect(state.error).toBe('Error al cargar las empresas')
       expect(state.isLoading).toBe(false)
     })
   })
@@ -366,6 +376,120 @@ describe('CompanyStore', () => {
 
       expect(results).toHaveLength(1)
       expect(results[0].razonSocial).toContain('ABC')
+    })
+  })
+
+  describe('permission validation', () => {
+    it('should throw PermissionError when consultor tries to create company', async () => {
+      const { useAuthStore } = await import('@/stores/auth-store')
+      vi.mocked(useAuthStore.getState).mockReturnValue({
+        user: { id: '1', rol: 'consultor' },
+      } as any)
+
+      const companyData = {
+        nit: '900123456',
+        digitoVerificacion: '1',
+        razonSocial: 'Nueva Empresa',
+        direccion: 'Calle 123',
+        ciudad: 'Bogota',
+        departamento: 'Cundinamarca',
+        telefono: '1234567',
+        email: 'test@empresa.com',
+        representanteLegal: 'Juan Perez',
+        activa: true,
+      }
+
+      await expect(
+        useCompanyStore.getState().createCompany(companyData as any)
+      ).rejects.toThrow(PermissionError)
+    })
+
+    it('should throw PermissionError when supervisor tries to delete company', async () => {
+      const { useAuthStore } = await import('@/stores/auth-store')
+      vi.mocked(useAuthStore.getState).mockReturnValue({
+        user: { id: '1', rol: 'supervisor' },
+      } as any)
+
+      await expect(
+        useCompanyStore.getState().deleteCompany('1')
+      ).rejects.toThrow(PermissionError)
+    })
+
+    it('should set error when user without permission tries to fetch', async () => {
+      const { useAuthStore } = await import('@/stores/auth-store')
+      vi.mocked(useAuthStore.getState).mockReturnValue({
+        user: null,
+      } as any)
+
+      await act(async () => {
+        await useCompanyStore.getState().fetchCompanies()
+      })
+
+      const state = useCompanyStore.getState()
+      expect(state.error).toBeTruthy()
+      expect(state.isLoading).toBe(false)
+    })
+
+    it('should allow admin to perform all CRUD operations', async () => {
+      const { useAuthStore } = await import('@/stores/auth-store')
+      const { db } = await import('@/lib/db')
+
+      vi.mocked(useAuthStore.getState).mockReturnValue({
+        user: { id: '1', rol: 'admin' },
+      } as any)
+      vi.mocked(db.companies.add).mockResolvedValue(undefined as any)
+      vi.mocked(db.companies.get).mockResolvedValue({
+        id: '1',
+        razonSocial: 'Test',
+        activa: true,
+      } as any)
+      vi.mocked(db.companies.update).mockResolvedValue(1)
+      vi.mocked(db.companies.delete).mockResolvedValue(undefined)
+
+      // Create should work
+      await expect(
+        useCompanyStore.getState().createCompany({
+          nit: '123',
+          digitoVerificacion: '1',
+          razonSocial: 'Test',
+          direccion: 'Calle',
+          ciudad: 'Bogota',
+          departamento: 'Cund',
+          telefono: '123',
+          email: 'test@test.com',
+          representanteLegal: 'Test',
+          activa: true,
+        } as any)
+      ).resolves.toBeDefined()
+    })
+
+    describe('permission helpers', () => {
+      it('should return true for canCreate when admin', async () => {
+        const { useAuthStore } = await import('@/stores/auth-store')
+        vi.mocked(useAuthStore.getState).mockReturnValue({
+          user: { id: '1', rol: 'admin' },
+        } as any)
+
+        expect(useCompanyStore.getState().canCreate()).toBe(true)
+      })
+
+      it('should return false for canCreate when consultor', async () => {
+        const { useAuthStore } = await import('@/stores/auth-store')
+        vi.mocked(useAuthStore.getState).mockReturnValue({
+          user: { id: '1', rol: 'consultor' },
+        } as any)
+
+        expect(useCompanyStore.getState().canCreate()).toBe(false)
+      })
+
+      it('should return false for canDelete when supervisor', async () => {
+        const { useAuthStore } = await import('@/stores/auth-store')
+        vi.mocked(useAuthStore.getState).mockReturnValue({
+          user: { id: '1', rol: 'supervisor' },
+        } as any)
+
+        expect(useCompanyStore.getState().canDelete()).toBe(false)
+      })
     })
   })
 })

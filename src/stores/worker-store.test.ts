@@ -21,6 +21,15 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
+// Mock auth store with admin permissions
+vi.mock('@/stores/auth-store', () => ({
+  useAuthStore: {
+    getState: vi.fn(() => ({
+      user: { id: '1', rol: 'admin' },
+    })),
+  },
+}))
+
 describe('WorkerStore', () => {
   beforeEach(() => {
     // Reset store
@@ -230,7 +239,7 @@ describe('WorkerStore', () => {
       })
 
       const state = useWorkerStore.getState()
-      expect(state.error).toBe('Error al cargar trabajadores')
+      expect(state.error).toBe('Error al cargar los trabajadores')
       expect(state.isLoading).toBe(false)
     })
   })

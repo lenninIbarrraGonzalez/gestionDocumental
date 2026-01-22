@@ -3,6 +3,17 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DocumentDetail } from './document-detail'
 
+// Mock auth store with admin permissions for PermissionGate
+vi.mock('@/stores/auth-store', () => ({
+  useAuthStore: vi.fn((selector) => {
+    const state = {
+      user: { id: '1', rol: 'admin' },
+      isAuthenticated: true,
+    }
+    return selector ? selector(state) : state
+  }),
+}))
+
 const mockDocument = {
   id: '1',
   codigo: 'DOC-2024-00001',

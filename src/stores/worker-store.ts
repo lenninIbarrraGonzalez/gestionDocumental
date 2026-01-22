@@ -1,6 +1,15 @@
 import { create } from 'zustand'
 import { db, type Worker } from '@/lib/db'
 import { generateId } from '@/lib/generators'
+import { MODULES, ACTIONS } from '@/lib/permissions'
+import {
+  requirePermission,
+  checkPermission,
+} from '@/lib/store-permission-middleware'
+import {
+  handleStoreError,
+  createNotFoundMessage,
+} from '@/lib/error-handler'
 
 interface WorkerFilter {
   empresaId?: string
@@ -32,7 +41,16 @@ interface WorkerState {
   getActiveWorkers: () => Worker[]
   getWorkerById: (id: string) => Worker | undefined
   searchWorkers: (query: string) => Worker[]
+
+  // Permission helpers
+  canCreate: () => boolean
+  canUpdate: () => boolean
+  canDelete: () => boolean
 }
+
+const MODULE = MODULES.WORKERS
+const LOG_PREFIX = '[worker-store]'
+const ENTITY_NAME = 'trabajador' as const
 
 export const useWorkerStore = create<WorkerState>((set, get) => ({
   workers: [],
@@ -44,14 +62,18 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
   fetchWorkers: async () => {
     set({ isLoading: true, error: null })
     try {
+      requirePermission(MODULE, ACTIONS.VIEW)
       const workers = await db.workers.toArray()
       set({ workers, isLoading: false })
     } catch (error) {
-      set({ error: 'Error al cargar trabajadores', isLoading: false })
+      const appError = handleStoreError(error, ENTITY_NAME, 'fetch', LOG_PREFIX)
+      set({ error: appError.userMessage, isLoading: false })
     }
   },
 
   createWorker: async (data) => {
+    requirePermission(MODULE, ACTIONS.CREATE)
+
     const newWorker: Worker = {
       ...data,
       id: generateId(),
@@ -59,15 +81,23 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
       fechaActualizacion: new Date(),
     }
 
-    await db.workers.add(newWorker)
-    set((state) => ({ workers: [...state.workers, newWorker] }))
-
-    return newWorker
+    try {
+      await db.workers.add(newWorker)
+      set((state) => ({ workers: [...state.workers, newWorker] }))
+      return newWorker
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'create', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   updateWorker: async (id: string, data: Partial<Worker>) => {
+    requirePermission(MODULE, ACTIONS.EDIT)
+
     const worker = await db.workers.get(id)
-    if (!worker) throw new Error('Trabajador no encontrado')
+    if (!worker) {
+      throw new Error(createNotFoundMessage(ENTITY_NAME))
+    }
 
     const updatedWorker = {
       ...worker,
@@ -75,23 +105,37 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
       fechaActualizacion: new Date(),
     }
 
-    await db.workers.update(id, updatedWorker)
-    set((state) => ({
-      workers: state.workers.map((w) => (w.id === id ? updatedWorker : w)),
-    }))
+    try {
+      await db.workers.update(id, updatedWorker)
+      set((state) => ({
+        workers: state.workers.map((w) => (w.id === id ? updatedWorker : w)),
+      }))
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'update', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   deleteWorker: async (id: string) => {
-    await db.workers.delete(id)
-    set((state) => ({
-      workers: state.workers.filter((w) => w.id !== id),
-      selectedWorker: state.selectedWorker?.id === id ? null : state.selectedWorker,
-    }))
+    requirePermission(MODULE, ACTIONS.DELETE)
+
+    try {
+      await db.workers.delete(id)
+      set((state) => ({
+        workers: state.workers.filter((w) => w.id !== id),
+        selectedWorker: state.selectedWorker?.id === id ? null : state.selectedWorker,
+      }))
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'delete', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   toggleActive: async (id: string) => {
     const worker = get().workers.find((w) => w.id === id)
-    if (!worker) throw new Error('Trabajador no encontrado')
+    if (!worker) {
+      throw new Error(createNotFoundMessage(ENTITY_NAME))
+    }
 
     await get().updateWorker(id, { activo: !worker.activo })
   },
@@ -162,4 +206,9 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
         w.cargo.toLowerCase().includes(search)
     )
   },
+
+  // Permission helpers
+  canCreate: () => checkPermission(MODULE, ACTIONS.CREATE),
+  canUpdate: () => checkPermission(MODULE, ACTIONS.EDIT),
+  canDelete: () => checkPermission(MODULE, ACTIONS.DELETE),
 }))

@@ -6,6 +6,15 @@ import { useAuditStore } from '@/stores/audit-store'
 import { WorkflowService } from '@/lib/services/workflow-service'
 import { DOCUMENT_STATUS } from '@/lib/constants'
 
+// Mock auth store with admin permissions
+vi.mock('@/stores/auth-store', () => ({
+  useAuthStore: {
+    getState: vi.fn(() => ({
+      user: { id: '1', rol: 'admin' },
+    })),
+  },
+}))
+
 // Mock db
 vi.mock('@/lib/db', () => ({
   db: {

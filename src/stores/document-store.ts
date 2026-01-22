@@ -2,6 +2,15 @@ import { create } from 'zustand'
 import { db, type Document } from '@/lib/db'
 import { generateId, generateDocumentCode } from '@/lib/generators'
 import { DOCUMENT_STATUS, DOCUMENT_PREFIXES } from '@/lib/constants'
+import { MODULES, ACTIONS } from '@/lib/permissions'
+import {
+  requirePermission,
+  checkPermission,
+} from '@/lib/store-permission-middleware'
+import {
+  handleStoreError,
+  createNotFoundMessage,
+} from '@/lib/error-handler'
 import type { DocumentStatus, CreateDocumentDTO, UpdateDocumentDTO } from '@/types'
 
 interface DocumentFilter {
@@ -48,7 +57,17 @@ interface DocumentState {
   searchDocuments: (query: string) => Document[]
   getExpiringDocuments: (days: number) => Document[]
   getExpiredDocuments: () => Document[]
+
+  // Permission helpers
+  canCreate: () => boolean
+  canUpdate: () => boolean
+  canDelete: () => boolean
+  canApprove: () => boolean
 }
+
+const MODULE = MODULES.DOCUMENTS
+const LOG_PREFIX = '[document-store]'
+const ENTITY_NAME = 'documento' as const
 
 export const useDocumentStore = create<DocumentState>((set, get) => ({
   documents: [],
@@ -64,10 +83,12 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   fetchDocuments: async () => {
     set({ isLoading: true, error: null })
     try {
+      requirePermission(MODULE, ACTIONS.VIEW)
       const documents = await db.documents.toArray()
       set({ documents, isLoading: false })
     } catch (error) {
-      set({ error: 'Error al cargar documentos', isLoading: false })
+      const appError = handleStoreError(error, ENTITY_NAME, 'fetch', LOG_PREFIX)
+      set({ error: appError.userMessage, isLoading: false })
     }
   },
 
@@ -81,6 +102,8 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   },
 
   createDocument: async (data: CreateDocumentDTO, userId: string) => {
+    requirePermission(MODULE, ACTIONS.CREATE)
+
     const year = new Date().getFullYear()
     const prefix = DOCUMENT_PREFIXES[data.tipo] || DOCUMENT_PREFIXES.default
 
@@ -106,15 +129,23 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       version: 1,
     }
 
-    await db.documents.add(newDocument)
-    set((state) => ({ documents: [...state.documents, newDocument] }))
-
-    return newDocument
+    try {
+      await db.documents.add(newDocument)
+      set((state) => ({ documents: [...state.documents, newDocument] }))
+      return newDocument
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'create', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   updateDocument: async (id: string, data: UpdateDocumentDTO, userId: string) => {
+    requirePermission(MODULE, ACTIONS.EDIT)
+
     const document = await db.documents.get(id)
-    if (!document) throw new Error('Documento no encontrado')
+    if (!document) {
+      throw new Error(createNotFoundMessage(ENTITY_NAME))
+    }
 
     const updatedDocument = {
       ...document,
@@ -123,26 +154,50 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       actualizadoPor: userId,
     }
 
-    await db.documents.update(id, updatedDocument)
-    set((state) => ({
-      documents: state.documents.map((d) =>
-        d.id === id ? updatedDocument : d
-      ),
-    }))
+    try {
+      await db.documents.update(id, updatedDocument)
+      set((state) => ({
+        documents: state.documents.map((d) =>
+          d.id === id ? updatedDocument : d
+        ),
+      }))
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'update', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   deleteDocument: async (id: string) => {
-    await db.documents.delete(id)
-    set((state) => ({
-      documents: state.documents.filter((d) => d.id !== id),
-      selectedDocument:
-        state.selectedDocument?.id === id ? null : state.selectedDocument,
-    }))
+    requirePermission(MODULE, ACTIONS.DELETE)
+
+    try {
+      await db.documents.delete(id)
+      set((state) => ({
+        documents: state.documents.filter((d) => d.id !== id),
+        selectedDocument:
+          state.selectedDocument?.id === id ? null : state.selectedDocument,
+      }))
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'delete', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   changeStatus: async (id: string, newStatus: DocumentStatus, userId: string) => {
+    // Approve action requires special permission
+    const isApprovalAction = newStatus === DOCUMENT_STATUS.APROBADO ||
+                             newStatus === DOCUMENT_STATUS.RECHAZADO
+
+    if (isApprovalAction) {
+      requirePermission(MODULE, ACTIONS.APPROVE)
+    } else {
+      requirePermission(MODULE, ACTIONS.EDIT)
+    }
+
     const document = await db.documents.get(id)
-    if (!document) throw new Error('Documento no encontrado')
+    if (!document) {
+      throw new Error(createNotFoundMessage(ENTITY_NAME))
+    }
 
     const updatedDocument = {
       ...document,
@@ -151,12 +206,17 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       actualizadoPor: userId,
     }
 
-    await db.documents.update(id, updatedDocument)
-    set((state) => ({
-      documents: state.documents.map((d) =>
-        d.id === id ? updatedDocument : d
-      ),
-    }))
+    try {
+      await db.documents.update(id, updatedDocument)
+      set((state) => ({
+        documents: state.documents.map((d) =>
+          d.id === id ? updatedDocument : d
+        ),
+      }))
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'update', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   setFilter: (filter: Partial<DocumentFilter>) => {
@@ -297,4 +357,10 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       return new Date(d.fechaVigencia) < now
     })
   },
+
+  // Permission helpers
+  canCreate: () => checkPermission(MODULE, ACTIONS.CREATE),
+  canUpdate: () => checkPermission(MODULE, ACTIONS.EDIT),
+  canDelete: () => checkPermission(MODULE, ACTIONS.DELETE),
+  canApprove: () => checkPermission(MODULE, ACTIONS.APPROVE),
 }))

@@ -1,6 +1,15 @@
 import { create } from 'zustand'
 import { db, type User } from '@/lib/db'
 import { generateId, hashPassword } from '@/lib/generators'
+import { MODULES, ACTIONS } from '@/lib/permissions'
+import {
+  requirePermission,
+  checkPermission,
+} from '@/lib/store-permission-middleware'
+import {
+  handleStoreError,
+  createNotFoundMessage,
+} from '@/lib/error-handler'
 import type { UserRole } from '@/types'
 
 interface UserFilter {
@@ -40,7 +49,16 @@ interface UserState {
   getUsersByRole: (rol: UserRole) => UserWithoutHash[]
   getActiveUsers: () => UserWithoutHash[]
   getUserById: (id: string) => UserWithoutHash | undefined
+
+  // Permission helpers
+  canCreate: () => boolean
+  canUpdate: () => boolean
+  canDelete: () => boolean
 }
+
+const MODULE = MODULES.USERS
+const LOG_PREFIX = '[user-store]'
+const ENTITY_NAME = 'usuario' as const
 
 export const useUserStore = create<UserState>((set, get) => ({
   users: [],
@@ -52,16 +70,20 @@ export const useUserStore = create<UserState>((set, get) => ({
   fetchUsers: async () => {
     set({ isLoading: true, error: null })
     try {
+      requirePermission(MODULE, ACTIONS.VIEW)
       const users = await db.users.toArray()
       // Remove password hash from users
       const usersWithoutHash = users.map(({ passwordHash: _passwordHash, ...user }) => user)
       set({ users: usersWithoutHash, isLoading: false })
     } catch (error) {
-      set({ error: 'Error al cargar usuarios', isLoading: false })
+      const appError = handleStoreError(error, ENTITY_NAME, 'fetch', LOG_PREFIX)
+      set({ error: appError.userMessage, isLoading: false })
     }
   },
 
   createUser: async (data) => {
+    requirePermission(MODULE, ACTIONS.CREATE)
+
     const hashedPassword = await hashPassword(data.password)
 
     const newUser: User = {
@@ -76,17 +98,24 @@ export const useUserStore = create<UserState>((set, get) => ({
       fechaActualizacion: new Date(),
     }
 
-    await db.users.add(newUser)
-
-    const { passwordHash: _passwordHash, ...userWithoutHash } = newUser
-    set((state) => ({ users: [...state.users, userWithoutHash] }))
-
-    return userWithoutHash
+    try {
+      await db.users.add(newUser)
+      const { passwordHash: _passwordHash, ...userWithoutHash } = newUser
+      set((state) => ({ users: [...state.users, userWithoutHash] }))
+      return userWithoutHash
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'create', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   updateUser: async (id: string, data: Partial<Omit<User, 'passwordHash'>>) => {
+    requirePermission(MODULE, ACTIONS.EDIT)
+
     const user = await db.users.get(id)
-    if (!user) throw new Error('Usuario no encontrado')
+    if (!user) {
+      throw new Error(createNotFoundMessage(ENTITY_NAME))
+    }
 
     const updatedUser = {
       ...user,
@@ -94,33 +123,53 @@ export const useUserStore = create<UserState>((set, get) => ({
       fechaActualizacion: new Date(),
     }
 
-    await db.users.update(id, updatedUser)
-
-    const { passwordHash: _passwordHash, ...userWithoutHash } = updatedUser
-    set((state) => ({
-      users: state.users.map((u) => (u.id === id ? userWithoutHash : u)),
-    }))
+    try {
+      await db.users.update(id, updatedUser)
+      const { passwordHash: _passwordHash, ...userWithoutHash } = updatedUser
+      set((state) => ({
+        users: state.users.map((u) => (u.id === id ? userWithoutHash : u)),
+      }))
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'update', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   updatePassword: async (id: string, newPassword: string) => {
-    const hashedPassword = await hashPassword(newPassword)
-    await db.users.update(id, {
-      passwordHash: hashedPassword,
-      fechaActualizacion: new Date(),
-    })
+    requirePermission(MODULE, ACTIONS.EDIT)
+
+    try {
+      const hashedPassword = await hashPassword(newPassword)
+      await db.users.update(id, {
+        passwordHash: hashedPassword,
+        fechaActualizacion: new Date(),
+      })
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'update', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   deleteUser: async (id: string) => {
-    await db.users.delete(id)
-    set((state) => ({
-      users: state.users.filter((u) => u.id !== id),
-      selectedUser: state.selectedUser?.id === id ? null : state.selectedUser,
-    }))
+    requirePermission(MODULE, ACTIONS.DELETE)
+
+    try {
+      await db.users.delete(id)
+      set((state) => ({
+        users: state.users.filter((u) => u.id !== id),
+        selectedUser: state.selectedUser?.id === id ? null : state.selectedUser,
+      }))
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'delete', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   toggleActive: async (id: string) => {
     const user = get().users.find((u) => u.id === id)
-    if (!user) throw new Error('Usuario no encontrado')
+    if (!user) {
+      throw new Error(createNotFoundMessage(ENTITY_NAME))
+    }
 
     await get().updateUser(id, { activo: !user.activo })
   },
@@ -176,4 +225,9 @@ export const useUserStore = create<UserState>((set, get) => ({
   getUserById: (id: string) => {
     return get().users.find((u) => u.id === id)
   },
+
+  // Permission helpers
+  canCreate: () => checkPermission(MODULE, ACTIONS.CREATE),
+  canUpdate: () => checkPermission(MODULE, ACTIONS.EDIT),
+  canDelete: () => checkPermission(MODULE, ACTIONS.DELETE),
 }))

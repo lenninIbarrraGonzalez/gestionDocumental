@@ -15,6 +15,15 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
+// Mock auth store with admin permissions
+vi.mock('@/stores/auth-store', () => ({
+  useAuthStore: {
+    getState: vi.fn(() => ({
+      user: { id: '1', rol: 'admin' },
+    })),
+  },
+}))
+
 describe('DocumentStore', () => {
   beforeEach(() => {
     // Reset store
@@ -382,7 +391,7 @@ describe('DocumentStore', () => {
       })
 
       const state = useDocumentStore.getState()
-      expect(state.error).toBe('Error al cargar documentos')
+      expect(state.error).toBe('Error al cargar los documentos')
       expect(state.isLoading).toBe(false)
     })
   })

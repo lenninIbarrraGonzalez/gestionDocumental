@@ -26,6 +26,15 @@ vi.mock('@/lib/generators', () => ({
   hashPassword: (pwd: string) => `hashed_${pwd}`,
 }))
 
+// Mock auth store with admin permissions
+vi.mock('@/stores/auth-store', () => ({
+  useAuthStore: {
+    getState: vi.fn(() => ({
+      user: { id: '1', rol: 'admin' },
+    })),
+  },
+}))
+
 describe('UserStore', () => {
   beforeEach(() => {
     // Reset store
@@ -248,7 +257,7 @@ describe('UserStore', () => {
       })
 
       const state = useUserStore.getState()
-      expect(state.error).toBe('Error al cargar usuarios')
+      expect(state.error).toBe('Error al cargar los usuarios')
       expect(state.isLoading).toBe(false)
     })
   })

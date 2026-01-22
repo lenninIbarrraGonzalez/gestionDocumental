@@ -1,6 +1,15 @@
 import { create } from 'zustand'
 import { db, type Company } from '@/lib/db'
 import { generateId } from '@/lib/generators'
+import { MODULES, ACTIONS } from '@/lib/permissions'
+import {
+  requirePermission,
+  checkPermission,
+} from '@/lib/store-permission-middleware'
+import {
+  handleStoreError,
+  createNotFoundMessage,
+} from '@/lib/error-handler'
 
 interface CompanyFilter {
   activa?: boolean
@@ -30,7 +39,16 @@ interface CompanyState {
   getActiveCompanies: () => Company[]
   getCompanyById: (id: string) => Company | undefined
   searchCompanies: (query: string) => Company[]
+
+  // Permission helpers
+  canCreate: () => boolean
+  canUpdate: () => boolean
+  canDelete: () => boolean
 }
+
+const MODULE = MODULES.COMPANIES
+const LOG_PREFIX = '[company-store]'
+const ENTITY_NAME = 'empresa' as const
 
 export const useCompanyStore = create<CompanyState>((set, get) => ({
   companies: [],
@@ -42,14 +60,18 @@ export const useCompanyStore = create<CompanyState>((set, get) => ({
   fetchCompanies: async () => {
     set({ isLoading: true, error: null })
     try {
+      requirePermission(MODULE, ACTIONS.VIEW)
       const companies = await db.companies.toArray()
       set({ companies, isLoading: false })
     } catch (error) {
-      set({ error: 'Error al cargar empresas', isLoading: false })
+      const appError = handleStoreError(error, ENTITY_NAME, 'fetch', LOG_PREFIX)
+      set({ error: appError.userMessage, isLoading: false })
     }
   },
 
   createCompany: async (data) => {
+    requirePermission(MODULE, ACTIONS.CREATE)
+
     const newCompany: Company = {
       ...data,
       id: generateId(),
@@ -57,15 +79,23 @@ export const useCompanyStore = create<CompanyState>((set, get) => ({
       fechaActualizacion: new Date(),
     }
 
-    await db.companies.add(newCompany)
-    set((state) => ({ companies: [...state.companies, newCompany] }))
-
-    return newCompany
+    try {
+      await db.companies.add(newCompany)
+      set((state) => ({ companies: [...state.companies, newCompany] }))
+      return newCompany
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'create', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   updateCompany: async (id: string, data: Partial<Company>) => {
+    requirePermission(MODULE, ACTIONS.EDIT)
+
     const company = await db.companies.get(id)
-    if (!company) throw new Error('Empresa no encontrada')
+    if (!company) {
+      throw new Error(createNotFoundMessage(ENTITY_NAME))
+    }
 
     const updatedCompany = {
       ...company,
@@ -73,23 +103,37 @@ export const useCompanyStore = create<CompanyState>((set, get) => ({
       fechaActualizacion: new Date(),
     }
 
-    await db.companies.update(id, updatedCompany)
-    set((state) => ({
-      companies: state.companies.map((c) => (c.id === id ? updatedCompany : c)),
-    }))
+    try {
+      await db.companies.update(id, updatedCompany)
+      set((state) => ({
+        companies: state.companies.map((c) => (c.id === id ? updatedCompany : c)),
+      }))
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'update', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   deleteCompany: async (id: string) => {
-    await db.companies.delete(id)
-    set((state) => ({
-      companies: state.companies.filter((c) => c.id !== id),
-      selectedCompany: state.selectedCompany?.id === id ? null : state.selectedCompany,
-    }))
+    requirePermission(MODULE, ACTIONS.DELETE)
+
+    try {
+      await db.companies.delete(id)
+      set((state) => ({
+        companies: state.companies.filter((c) => c.id !== id),
+        selectedCompany: state.selectedCompany?.id === id ? null : state.selectedCompany,
+      }))
+    } catch (error) {
+      const appError = handleStoreError(error, ENTITY_NAME, 'delete', LOG_PREFIX)
+      throw new Error(appError.userMessage)
+    }
   },
 
   toggleActive: async (id: string) => {
     const company = get().companies.find((c) => c.id === id)
-    if (!company) throw new Error('Empresa no encontrada')
+    if (!company) {
+      throw new Error(createNotFoundMessage(ENTITY_NAME))
+    }
 
     await get().updateCompany(id, { activa: !company.activa })
   },
@@ -152,4 +196,9 @@ export const useCompanyStore = create<CompanyState>((set, get) => ({
         c.ciudad.toLowerCase().includes(search)
     )
   },
+
+  // Permission helpers
+  canCreate: () => checkPermission(MODULE, ACTIONS.CREATE),
+  canUpdate: () => checkPermission(MODULE, ACTIONS.EDIT),
+  canDelete: () => checkPermission(MODULE, ACTIONS.DELETE),
 }))
