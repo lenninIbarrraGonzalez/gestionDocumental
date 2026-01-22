@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useUserStore } from '@/stores/user-store'
+import { PageGuard } from '@/components/shared/page-guard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -59,12 +60,14 @@ export default function UsuariosPage() {
   const setFilter = useUserStore((state) => state.setFilter)
   const getFilteredUsers = useUserStore((state) => state.getFilteredUsers)
   const updateUser = useUserStore((state) => state.updateUser)
+  const createUser = useUserStore((state) => state.createUser)
 
   const [search, setSearch] = useState('')
   const [selectedUser, setSelectedUser] = useState<UserWithoutHash | null>(null)
-  const [isViewMode, setIsViewMode] = useState(false)
+  const [dialogMode, setDialogMode] = useState<'view' | 'edit' | 'create'>('view')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editForm, setEditForm] = useState<Partial<UserWithoutHash>>({})
+  const [password, setPassword] = useState('')
 
   const filteredUsers = getFilteredUsers()
 
@@ -81,16 +84,30 @@ export default function UsuariosPage() {
     }
   }
 
+  const handleCreate = () => {
+    setSelectedUser(null)
+    setEditForm({
+      email: '',
+      nombre: '',
+      apellido: '',
+      rol: 'digitador' as UserRole,
+      activo: true,
+    })
+    setPassword('')
+    setDialogMode('create')
+    setIsDialogOpen(true)
+  }
+
   const handleView = (user: UserWithoutHash) => {
     setSelectedUser(user)
-    setIsViewMode(true)
+    setDialogMode('view')
     setIsDialogOpen(true)
   }
 
   const handleEdit = (user: UserWithoutHash) => {
     setSelectedUser(user)
     setEditForm(user)
-    setIsViewMode(false)
+    setDialogMode('edit')
     setIsDialogOpen(true)
   }
 
@@ -98,29 +115,40 @@ export default function UsuariosPage() {
     setIsDialogOpen(false)
     setSelectedUser(null)
     setEditForm({})
+    setPassword('')
   }
 
   const handleSave = async () => {
-    if (selectedUser && editForm) {
+    if (dialogMode === 'create') {
+      await createUser({
+        email: editForm.email || '',
+        password: password,
+        nombre: editForm.nombre || '',
+        apellido: editForm.apellido || '',
+        rol: editForm.rol || 'digitador',
+      })
+      handleCloseDialog()
+    } else if (selectedUser && editForm) {
       await updateUser(selectedUser.id, editForm)
       handleCloseDialog()
     }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Usuarios</h1>
-          <p className="text-muted-foreground">
-            Gestiona los usuarios del sistema
-          </p>
+    <PageGuard allowedRoles={['admin']}>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Usuarios</h1>
+            <p className="text-muted-foreground">
+              Gestiona los usuarios del sistema
+            </p>
+          </div>
+          <Button onClick={handleCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo Usuario
+          </Button>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Nuevo Usuario
-        </Button>
-      </div>
 
       {/* Filters */}
       <Card>
@@ -225,22 +253,24 @@ export default function UsuariosPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {isViewMode ? 'Detalles del Usuario' : 'Editar Usuario'}
+              {dialogMode === 'view' ? 'Detalles del Usuario' : dialogMode === 'create' ? 'Nuevo Usuario' : 'Editar Usuario'}
             </DialogTitle>
             <DialogDescription>
-              {isViewMode
+              {dialogMode === 'view'
                 ? 'Informacion detallada del usuario'
+                : dialogMode === 'create'
+                ? 'Ingresa los datos del nuevo usuario'
                 : 'Modifica los datos del usuario'}
             </DialogDescription>
           </DialogHeader>
 
-          {selectedUser && (
+          {(selectedUser || dialogMode === 'create') && (
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nombre</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedUser.nombre}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedUser?.nombre}</p>
                   ) : (
                     <Input
                       value={editForm.nombre || ''}
@@ -250,8 +280,8 @@ export default function UsuariosPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Apellido</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedUser.apellido}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedUser?.apellido}</p>
                   ) : (
                     <Input
                       value={editForm.apellido || ''}
@@ -263,8 +293,8 @@ export default function UsuariosPage() {
 
               <div className="space-y-2">
                 <Label>Email</Label>
-                {isViewMode ? (
-                  <p className="text-sm">{selectedUser.email}</p>
+                {dialogMode === 'view' ? (
+                  <p className="text-sm">{selectedUser?.email}</p>
                 ) : (
                   <Input
                     type="email"
@@ -274,11 +304,23 @@ export default function UsuariosPage() {
                 )}
               </div>
 
+              {dialogMode === 'create' && (
+                <div className="space-y-2">
+                  <Label>Contraseña</Label>
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Ingresa una contraseña"
+                  />
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Rol</Label>
-                {isViewMode ? (
+                {dialogMode === 'view' ? (
                   <Badge variant="outline">
-                    {roleLabels[selectedUser.rol] || selectedUser.rol}
+                    {roleLabels[selectedUser?.rol || ''] || selectedUser?.rol}
                   </Badge>
                 ) : (
                   <Select
@@ -299,19 +341,23 @@ export default function UsuariosPage() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label>Estado</Label>
-                <Badge variant={selectedUser.activo ? 'default' : 'secondary'}>
-                  {selectedUser.activo ? 'Activo' : 'Inactivo'}
-                </Badge>
-              </div>
+              {dialogMode !== 'create' && (
+                <div className="space-y-2">
+                  <Label>Estado</Label>
+                  <Badge variant={selectedUser?.activo ? 'default' : 'secondary'}>
+                    {selectedUser?.activo ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                </div>
+              )}
 
-              <div className="space-y-2">
-                <Label>Fecha de Creacion</Label>
-                <p className="text-sm">{formatDate(selectedUser.fechaCreacion)}</p>
-              </div>
+              {dialogMode !== 'create' && (
+                <div className="space-y-2">
+                  <Label>Fecha de Creacion</Label>
+                  <p className="text-sm">{selectedUser?.fechaCreacion ? formatDate(selectedUser.fechaCreacion) : ''}</p>
+                </div>
+              )}
 
-              {selectedUser.ultimoAcceso && (
+              {dialogMode !== 'create' && selectedUser?.ultimoAcceso && (
                 <div className="space-y-2">
                   <Label>Ultimo Acceso</Label>
                   <p className="text-sm">{formatDate(selectedUser.ultimoAcceso)}</p>
@@ -322,16 +368,17 @@ export default function UsuariosPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>
-              {isViewMode ? 'Cerrar' : 'Cancelar'}
+              {dialogMode === 'view' ? 'Cerrar' : 'Cancelar'}
             </Button>
-            {!isViewMode && (
+            {dialogMode !== 'view' && (
               <Button onClick={handleSave}>
-                Guardar Cambios
+                {dialogMode === 'create' ? 'Crear Usuario' : 'Guardar Cambios'}
               </Button>
             )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </PageGuard>
   )
 }

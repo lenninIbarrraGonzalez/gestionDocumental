@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 import { useCompanyStore } from '@/stores/company-store'
+import { usePermissions } from '@/hooks/use-permissions'
+import { PermissionGate } from '@/components/shared/permission-gate'
+import { MODULES, ACTIONS } from '@/lib/permissions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,10 +35,11 @@ export default function EmpresasPage() {
   const setFilter = useCompanyStore((state) => state.setFilter)
   const getFilteredCompanies = useCompanyStore((state) => state.getFilteredCompanies)
   const updateCompany = useCompanyStore((state) => state.updateCompany)
+  const createCompany = useCompanyStore((state) => state.createCompany)
 
   const [search, setSearch] = useState('')
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
-  const [isViewMode, setIsViewMode] = useState(false)
+  const [dialogMode, setDialogMode] = useState<'view' | 'edit' | 'create'>('view')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Company>>({})
 
@@ -46,16 +50,35 @@ export default function EmpresasPage() {
     setFilter({ search: value })
   }
 
+  const handleCreate = () => {
+    setSelectedCompany(null)
+    setEditForm({
+      nit: '',
+      digitoVerificacion: '',
+      razonSocial: '',
+      nombreComercial: '',
+      direccion: '',
+      ciudad: '',
+      departamento: '',
+      telefono: '',
+      email: '',
+      representanteLegal: '',
+      activa: true,
+    })
+    setDialogMode('create')
+    setIsDialogOpen(true)
+  }
+
   const handleView = (company: Company) => {
     setSelectedCompany(company)
-    setIsViewMode(true)
+    setDialogMode('view')
     setIsDialogOpen(true)
   }
 
   const handleEdit = (company: Company) => {
     setSelectedCompany(company)
     setEditForm(company)
-    setIsViewMode(false)
+    setDialogMode('edit')
     setIsDialogOpen(true)
   }
 
@@ -66,7 +89,10 @@ export default function EmpresasPage() {
   }
 
   const handleSave = async () => {
-    if (selectedCompany && editForm) {
+    if (dialogMode === 'create') {
+      await createCompany(editForm as Omit<Company, 'id' | 'fechaCreacion' | 'fechaActualizacion'>)
+      handleCloseDialog()
+    } else if (selectedCompany && editForm) {
       await updateCompany(selectedCompany.id, editForm)
       handleCloseDialog()
     }
@@ -81,10 +107,12 @@ export default function EmpresasPage() {
             Gestiona las empresas afiliadas
           </p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Nueva Empresa
-        </Button>
+        <PermissionGate module={MODULES.COMPANIES} action={ACTIONS.CREATE}>
+          <Button onClick={handleCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nueva Empresa
+          </Button>
+        </PermissionGate>
       </div>
 
       {/* Search */}
@@ -149,9 +177,11 @@ export default function EmpresasPage() {
                       <Button variant="ghost" size="icon" onClick={() => handleView(company)}>
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(company)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      <PermissionGate module={MODULES.COMPANIES} action={ACTIONS.EDIT}>
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(company)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </PermissionGate>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -168,27 +198,29 @@ export default function EmpresasPage() {
         </CardContent>
       </Card>
 
-      {/* View/Edit Dialog */}
+      {/* View/Edit/Create Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {isViewMode ? 'Detalles de Empresa' : 'Editar Empresa'}
+              {dialogMode === 'view' ? 'Detalles de Empresa' : dialogMode === 'create' ? 'Nueva Empresa' : 'Editar Empresa'}
             </DialogTitle>
             <DialogDescription>
-              {isViewMode
+              {dialogMode === 'view'
                 ? 'Informacion detallada de la empresa'
+                : dialogMode === 'create'
+                ? 'Ingresa los datos de la nueva empresa'
                 : 'Modifica los datos de la empresa'}
             </DialogDescription>
           </DialogHeader>
 
-          {selectedCompany && (
+          {(selectedCompany || dialogMode === 'create') && (
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>NIT</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedCompany.nit}-{selectedCompany.digitoVerificacion}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedCompany?.nit}-{selectedCompany?.digitoVerificacion}</p>
                   ) : (
                     <Input
                       value={editForm.nit || ''}
@@ -198,8 +230,8 @@ export default function EmpresasPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Digito de Verificacion</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedCompany.digitoVerificacion}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedCompany?.digitoVerificacion}</p>
                   ) : (
                     <Input
                       value={editForm.digitoVerificacion || ''}
@@ -211,8 +243,8 @@ export default function EmpresasPage() {
 
               <div className="space-y-2">
                 <Label>Razon Social</Label>
-                {isViewMode ? (
-                  <p className="text-sm">{selectedCompany.razonSocial}</p>
+                {dialogMode === 'view' ? (
+                  <p className="text-sm">{selectedCompany?.razonSocial}</p>
                 ) : (
                   <Input
                     value={editForm.razonSocial || ''}
@@ -223,8 +255,8 @@ export default function EmpresasPage() {
 
               <div className="space-y-2">
                 <Label>Nombre Comercial</Label>
-                {isViewMode ? (
-                  <p className="text-sm">{selectedCompany.nombreComercial || '-'}</p>
+                {dialogMode === 'view' ? (
+                  <p className="text-sm">{selectedCompany?.nombreComercial || '-'}</p>
                 ) : (
                   <Input
                     value={editForm.nombreComercial || ''}
@@ -235,8 +267,8 @@ export default function EmpresasPage() {
 
               <div className="space-y-2">
                 <Label>Direccion</Label>
-                {isViewMode ? (
-                  <p className="text-sm">{selectedCompany.direccion}</p>
+                {dialogMode === 'view' ? (
+                  <p className="text-sm">{selectedCompany?.direccion}</p>
                 ) : (
                   <Input
                     value={editForm.direccion || ''}
@@ -248,8 +280,8 @@ export default function EmpresasPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Ciudad</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedCompany.ciudad}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedCompany?.ciudad}</p>
                   ) : (
                     <Input
                       value={editForm.ciudad || ''}
@@ -259,8 +291,8 @@ export default function EmpresasPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Departamento</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedCompany.departamento}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedCompany?.departamento}</p>
                   ) : (
                     <Input
                       value={editForm.departamento || ''}
@@ -273,8 +305,8 @@ export default function EmpresasPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Telefono</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedCompany.telefono}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedCompany?.telefono}</p>
                   ) : (
                     <Input
                       value={editForm.telefono || ''}
@@ -284,8 +316,8 @@ export default function EmpresasPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Email</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedCompany.email}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedCompany?.email}</p>
                   ) : (
                     <Input
                       value={editForm.email || ''}
@@ -297,8 +329,8 @@ export default function EmpresasPage() {
 
               <div className="space-y-2">
                 <Label>Representante Legal</Label>
-                {isViewMode ? (
-                  <p className="text-sm">{selectedCompany.representanteLegal}</p>
+                {dialogMode === 'view' ? (
+                  <p className="text-sm">{selectedCompany?.representanteLegal}</p>
                 ) : (
                   <Input
                     value={editForm.representanteLegal || ''}
@@ -307,22 +339,24 @@ export default function EmpresasPage() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label>Estado</Label>
-                <Badge variant={selectedCompany.activa ? 'default' : 'secondary'}>
-                  {selectedCompany.activa ? 'Activa' : 'Inactiva'}
-                </Badge>
-              </div>
+              {dialogMode === 'view' && selectedCompany && (
+                <div className="space-y-2">
+                  <Label>Estado</Label>
+                  <Badge variant={selectedCompany.activa ? 'default' : 'secondary'}>
+                    {selectedCompany.activa ? 'Activa' : 'Inactiva'}
+                  </Badge>
+                </div>
+              )}
             </div>
           )}
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>
-              {isViewMode ? 'Cerrar' : 'Cancelar'}
+              {dialogMode === 'view' ? 'Cerrar' : 'Cancelar'}
             </Button>
-            {!isViewMode && (
+            {dialogMode !== 'view' && (
               <Button onClick={handleSave}>
-                Guardar Cambios
+                {dialogMode === 'create' ? 'Crear Empresa' : 'Guardar Cambios'}
               </Button>
             )}
           </DialogFooter>

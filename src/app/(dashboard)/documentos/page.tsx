@@ -5,6 +5,9 @@ import Link from 'next/link'
 import { useDocumentStore } from '@/stores/document-store'
 import { useCompanyStore } from '@/stores/company-store'
 import { useAuthStore } from '@/stores/auth-store'
+import { usePermissions } from '@/hooks/use-permissions'
+import { PermissionGate } from '@/components/shared/permission-gate'
+import { MODULES, ACTIONS } from '@/lib/permissions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +15,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { DocumentDetail } from '@/components/features/documents/document-detail'
 import { DocumentForm } from '@/components/features/documents/document-form'
 import type { Document } from '@/lib/db'
+import type { DocumentStatus, UpdateDocumentDTO } from '@/types'
 import {
   Table,
   TableBody,
@@ -58,7 +62,7 @@ export default function DocumentosPage() {
     if (value === 'all') {
       setFilter({ estado: undefined })
     } else {
-      setFilter({ estado: value as any })
+      setFilter({ estado: value as DocumentStatus })
     }
   }
 
@@ -99,11 +103,11 @@ export default function DocumentosPage() {
 
   const handleStatusChangeAction = async (doc: Document, newStatus: string) => {
     if (user) {
-      await changeStatus(doc.id, newStatus as any, user.id)
+      await changeStatus(doc.id, newStatus as DocumentStatus, user.id)
     }
   }
 
-  const handleEditSubmit = async (data: any) => {
+  const handleEditSubmit = async (data: UpdateDocumentDTO) => {
     if (selectedDocument && user) {
       setIsSubmitting(true)
       try {
@@ -124,12 +128,14 @@ export default function DocumentosPage() {
             Gestiona los documentos del sistema
           </p>
         </div>
-        <Link href="/documentos/nuevo">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo Documento
-          </Button>
-        </Link>
+        <PermissionGate module={MODULES.DOCUMENTS} action={ACTIONS.CREATE}>
+          <Link href="/documentos/nuevo">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo Documento
+            </Button>
+          </Link>
+        </PermissionGate>
       </div>
 
       {/* Filters */}
@@ -228,9 +234,11 @@ export default function DocumentosPage() {
                       <Button variant="ghost" size="icon" onClick={() => handleView(doc)}>
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(doc)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      <PermissionGate module={MODULES.DOCUMENTS} action={ACTIONS.EDIT}>
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(doc)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </PermissionGate>
                     </div>
                   </TableCell>
                 </TableRow>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuditStore } from '@/stores/audit-store'
+import { PageGuard } from '@/components/shared/page-guard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -65,13 +66,14 @@ export default function AuditoriaPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Auditoria</h1>
-        <p className="text-muted-foreground">
-          Registro de todas las acciones realizadas en el sistema
-        </p>
-      </div>
+    <PageGuard allowedRoles={['admin', 'supervisor']}>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Auditoria</h1>
+          <p className="text-muted-foreground">
+            Registro de todas las acciones realizadas en el sistema
+          </p>
+        </div>
 
       {/* Filters */}
       <Card>
@@ -163,6 +165,7 @@ export default function AuditoriaPage() {
           </Table>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </PageGuard>
   )
 }

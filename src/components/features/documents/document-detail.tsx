@@ -4,7 +4,9 @@ import { X, Pencil, Trash2, Clock, User, Calendar, FileText } from 'lucide-react
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { DOCUMENT_TYPES, STATUS_CONFIG } from '@/lib/constants'
+import { PermissionGate } from '@/components/shared/permission-gate'
+import { MODULES, ACTIONS } from '@/lib/permissions'
+import { DOCUMENT_TYPES, STATUS_CONFIG, getStatusBadgeVariant } from '@/lib/constants'
 import { formatDate, formatDateTime } from '@/lib/formatters'
 import type { Document } from '@/lib/db'
 
@@ -25,15 +27,6 @@ export function DocumentDetail({
 }: DocumentDetailProps) {
   const statusConfig = STATUS_CONFIG[document.estado as keyof typeof STATUS_CONFIG]
 
-  const variantMap: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-    success: 'default',
-    warning: 'secondary',
-    destructive: 'destructive',
-    default: 'secondary',
-    secondary: 'secondary',
-    outline: 'outline',
-  }
-
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -42,7 +35,7 @@ export function DocumentDetail({
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold">{document.titulo}</h2>
             {statusConfig && (
-              <Badge variant={variantMap[statusConfig.color] || 'secondary'}>
+              <Badge variant={getStatusBadgeVariant(statusConfig.color)}>
                 {statusConfig.label}
               </Badge>
             )}
@@ -140,18 +133,22 @@ export function DocumentDetail({
 
       {/* Actions */}
       <div className="flex items-center justify-end gap-2 p-6 border-t">
-        <Button
-          variant="outline"
-          onClick={() => onDelete(document)}
-          className="text-destructive"
-        >
-          <Trash2 className="h-4 w-4 mr-2" />
-          Eliminar
-        </Button>
-        <Button onClick={() => onEdit(document)} aria-label="Editar documento">
-          <Pencil className="h-4 w-4 mr-2" />
-          Editar
-        </Button>
+        <PermissionGate module={MODULES.DOCUMENTS} action={ACTIONS.DELETE}>
+          <Button
+            variant="outline"
+            onClick={() => onDelete(document)}
+            className="text-destructive"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Eliminar
+          </Button>
+        </PermissionGate>
+        <PermissionGate module={MODULES.DOCUMENTS} action={ACTIONS.EDIT}>
+          <Button onClick={() => onEdit(document)} aria-label="Editar documento">
+            <Pencil className="h-4 w-4 mr-2" />
+            Editar
+          </Button>
+        </PermissionGate>
       </div>
     </div>
   )

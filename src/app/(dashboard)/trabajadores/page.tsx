@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { useWorkerStore } from '@/stores/worker-store'
 import { useCompanyStore } from '@/stores/company-store'
+import { usePermissions } from '@/hooks/use-permissions'
+import { PermissionGate } from '@/components/shared/permission-gate'
+import { MODULES, ACTIONS } from '@/lib/permissions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,11 +43,12 @@ export default function TrabajadoresPage() {
   const setFilter = useWorkerStore((state) => state.setFilter)
   const getFilteredWorkers = useWorkerStore((state) => state.getFilteredWorkers)
   const updateWorker = useWorkerStore((state) => state.updateWorker)
+  const createWorker = useWorkerStore((state) => state.createWorker)
   const companies = useCompanyStore((state) => state.companies)
 
   const [search, setSearch] = useState('')
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null)
-  const [isViewMode, setIsViewMode] = useState(false)
+  const [dialogMode, setDialogMode] = useState<'view' | 'edit' | 'create'>('view')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editForm, setEditForm] = useState<Partial<Worker>>({})
 
@@ -68,16 +72,34 @@ export default function TrabajadoresPage() {
     return company?.razonSocial || 'N/A'
   }
 
+  const handleCreate = () => {
+    setSelectedWorker(null)
+    setEditForm({
+      tipoDocumento: 'CC',
+      documento: '',
+      nombres: '',
+      apellidos: '',
+      email: '',
+      telefono: '',
+      cargo: '',
+      area: '',
+      empresaId: '',
+      activo: true,
+    })
+    setDialogMode('create')
+    setIsDialogOpen(true)
+  }
+
   const handleView = (worker: Worker) => {
     setSelectedWorker(worker)
-    setIsViewMode(true)
+    setDialogMode('view')
     setIsDialogOpen(true)
   }
 
   const handleEdit = (worker: Worker) => {
     setSelectedWorker(worker)
     setEditForm(worker)
-    setIsViewMode(false)
+    setDialogMode('edit')
     setIsDialogOpen(true)
   }
 
@@ -88,7 +110,10 @@ export default function TrabajadoresPage() {
   }
 
   const handleSave = async () => {
-    if (selectedWorker && editForm) {
+    if (dialogMode === 'create') {
+      await createWorker(editForm as Omit<Worker, 'id' | 'fechaCreacion' | 'fechaActualizacion'>)
+      handleCloseDialog()
+    } else if (selectedWorker && editForm) {
       await updateWorker(selectedWorker.id, editForm)
       handleCloseDialog()
     }
@@ -103,10 +128,12 @@ export default function TrabajadoresPage() {
             Gestiona los trabajadores de las empresas
           </p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Nuevo Trabajador
-        </Button>
+        <PermissionGate module={MODULES.WORKERS} action={ACTIONS.CREATE}>
+          <Button onClick={handleCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo Trabajador
+          </Button>
+        </PermissionGate>
       </div>
 
       {/* Filters */}
@@ -186,9 +213,11 @@ export default function TrabajadoresPage() {
                       <Button variant="ghost" size="icon" onClick={() => handleView(worker)}>
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(worker)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      <PermissionGate module={MODULES.WORKERS} action={ACTIONS.EDIT}>
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(worker)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </PermissionGate>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -205,27 +234,29 @@ export default function TrabajadoresPage() {
         </CardContent>
       </Card>
 
-      {/* View/Edit Dialog */}
+      {/* View/Edit/Create Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {isViewMode ? 'Detalles del Trabajador' : 'Editar Trabajador'}
+              {dialogMode === 'view' ? 'Detalles del Trabajador' : dialogMode === 'create' ? 'Nuevo Trabajador' : 'Editar Trabajador'}
             </DialogTitle>
             <DialogDescription>
-              {isViewMode
+              {dialogMode === 'view'
                 ? 'Informacion detallada del trabajador'
+                : dialogMode === 'create'
+                ? 'Ingresa los datos del nuevo trabajador'
                 : 'Modifica los datos del trabajador'}
             </DialogDescription>
           </DialogHeader>
 
-          {selectedWorker && (
+          {(selectedWorker || dialogMode === 'create') && (
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Tipo de Documento</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedWorker.tipoDocumento}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedWorker?.tipoDocumento}</p>
                   ) : (
                     <Select
                       value={editForm.tipoDocumento || ''}
@@ -244,8 +275,8 @@ export default function TrabajadoresPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Numero de Documento</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedWorker.documento}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedWorker?.documento}</p>
                   ) : (
                     <Input
                       value={editForm.documento || ''}
@@ -258,8 +289,8 @@ export default function TrabajadoresPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nombres</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedWorker.nombres}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedWorker?.nombres}</p>
                   ) : (
                     <Input
                       value={editForm.nombres || ''}
@@ -269,8 +300,8 @@ export default function TrabajadoresPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Apellidos</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedWorker.apellidos}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedWorker?.apellidos}</p>
                   ) : (
                     <Input
                       value={editForm.apellidos || ''}
@@ -283,8 +314,8 @@ export default function TrabajadoresPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Email</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedWorker.email || '-'}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedWorker?.email || '-'}</p>
                   ) : (
                     <Input
                       type="email"
@@ -295,8 +326,8 @@ export default function TrabajadoresPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Telefono</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedWorker.telefono || '-'}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedWorker?.telefono || '-'}</p>
                   ) : (
                     <Input
                       value={editForm.telefono || ''}
@@ -309,8 +340,8 @@ export default function TrabajadoresPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Cargo</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedWorker.cargo}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedWorker?.cargo}</p>
                   ) : (
                     <Input
                       value={editForm.cargo || ''}
@@ -320,8 +351,8 @@ export default function TrabajadoresPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Area</Label>
-                  {isViewMode ? (
-                    <p className="text-sm">{selectedWorker.area || '-'}</p>
+                  {dialogMode === 'view' ? (
+                    <p className="text-sm">{selectedWorker?.area || '-'}</p>
                   ) : (
                     <Input
                       value={editForm.area || ''}
@@ -333,8 +364,8 @@ export default function TrabajadoresPage() {
 
               <div className="space-y-2">
                 <Label>Empresa</Label>
-                {isViewMode ? (
-                  <p className="text-sm">{getCompanyName(selectedWorker.empresaId)}</p>
+                {dialogMode === 'view' ? (
+                  <p className="text-sm">{getCompanyName(selectedWorker?.empresaId || '')}</p>
                 ) : (
                   <Select
                     value={editForm.empresaId || ''}
@@ -354,22 +385,24 @@ export default function TrabajadoresPage() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label>Estado</Label>
-                <Badge variant={selectedWorker.activo ? 'default' : 'secondary'}>
-                  {selectedWorker.activo ? 'Activo' : 'Inactivo'}
-                </Badge>
-              </div>
+              {dialogMode === 'view' && selectedWorker && (
+                <div className="space-y-2">
+                  <Label>Estado</Label>
+                  <Badge variant={selectedWorker.activo ? 'default' : 'secondary'}>
+                    {selectedWorker.activo ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                </div>
+              )}
             </div>
           )}
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>
-              {isViewMode ? 'Cerrar' : 'Cancelar'}
+              {dialogMode === 'view' ? 'Cerrar' : 'Cancelar'}
             </Button>
-            {!isViewMode && (
+            {dialogMode !== 'view' && (
               <Button onClick={handleSave}>
-                Guardar Cambios
+                {dialogMode === 'create' ? 'Crear Trabajador' : 'Guardar Cambios'}
               </Button>
             )}
           </DialogFooter>
