@@ -50,6 +50,33 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        sura: {
+          blue: {
+            DEFAULT: '#0033A0',
+            light: '#4990E2',
+            dark: '#002570',
+          },
+          yellow: {
+            DEFAULT: '#D4E157',
+            dark: '#C0CA33',
+          },
+          success: {
+            DEFAULT: '#22C55E',
+            light: '#DCFCE7',
+          },
+          warning: {
+            DEFAULT: '#EAB308',
+            light: '#FEF9C3',
+          },
+          danger: {
+            DEFAULT: '#EF4444',
+            light: '#FEE2E2',
+          },
+          info: {
+            DEFAULT: '#0033A0',
+            light: '#DBEAFE',
+          },
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
